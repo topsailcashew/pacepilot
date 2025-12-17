@@ -21,7 +21,7 @@ const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const [seconds, setSeconds] = useState(0);
 
   useEffect(() => {
-    let interval: any = null;
+    let interval: NodeJS.Timeout | null = null;
     if (isActive) {
       if (onStart) onStart();
       interval = setInterval(() => {
@@ -38,9 +38,11 @@ const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       }, 1000);
     } else {
       if (onStop) onStop();
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
     }
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [isActive, minutes, seconds, onStart, onStop, setIsActive]);
 
   const toggleTimer = () => setIsActive(!isActive);
