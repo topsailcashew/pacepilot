@@ -1,0 +1,7 @@
+{
+  "name": "Pace Pilot ⚡",
+  "description": "Your AI-powered productivity sidekick that aligns tasks with your energy levels. Features energy-based task suggestions, Pomodoro focus mode with curated lo-fi music, and AI-generated progress reports.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
