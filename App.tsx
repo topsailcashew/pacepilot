@@ -50,8 +50,10 @@ import { EnergyLevel, Task, Project, DailyReport, AppState, CalendarEvent, Recur
 import { ENERGY_LEVELS, CATEGORIES } from './constants';
 import { generateDailyReport, getWeeklyInsights } from './services/geminiService';
 import PomodoroTimer from './components/PomodoroTimer';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell 
+import LoginPage from './components/LoginPage';
+import LoadingScreen from './components/LoadingScreen';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
 
 // --- Shared Design Constants ---
@@ -156,8 +158,9 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen }: { isCollapsed: boolean; isO
 
 // --- Header Component ---
 
-const TopBar = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
+const TopBar = ({ toggleSidebar, onLogout }: { toggleSidebar: () => void; onLogout: () => void }) => {
   const [time, setTime] = useState(new Date());
+  const [showLogoutMenu, setShowLogoutMenu] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -187,15 +190,37 @@ const TopBar = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
         </div>
         <div className="flex-1 lg:w-80 relative">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" />
-          <input 
-            type="text" 
-            placeholder="QUICK SEARCH..." 
+          <input
+            type="text"
+            placeholder="QUICK SEARCH..."
             className={`${THEME.input} w-full pl-11 py-2.5 font-bold uppercase tracking-widest`}
           />
         </div>
         <button className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all">
           <Bell size={20} />
         </button>
+        <div className="relative">
+          <button
+            onClick={() => setShowLogoutMenu(!showLogoutMenu)}
+            className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all"
+          >
+            <Settings size={20} />
+          </button>
+          {showLogoutMenu && (
+            <div className="absolute right-0 mt-2 w-48 bg-prussianblue border border-white/10 rounded-lg shadow-xl z-50">
+              <button
+                onClick={() => {
+                  setShowLogoutMenu(false);
+                  onLogout();
+                }}
+                className="w-full text-left px-4 py-3 text-sm font-bold text-white/70 hover:text-pilot-orange hover:bg-white/5 transition-all flex items-center gap-2"
+              >
+                <ArrowLeft size={14} />
+                <span className="uppercase tracking-wider">Sign Out</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
@@ -1276,6 +1301,7 @@ const CalendarPage = ({ events, onAdd }: { events: CalendarEvent[], onAdd: (ev: 
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [state, setState] = useState<AppState>({
     tasks: [],
     projects: [],
@@ -1287,10 +1313,24 @@ export default function App() {
   });
 
   useEffect(() => {
+    const checkAuth = () => {
+      // Check if user is already authenticated (e.g., from localStorage)
+      const savedAuth = localStorage.getItem('isAuthenticated');
+      if (savedAuth === 'true') {
+        setIsAuthenticated(true);
+      }
+      setLoading(false);
+    };
+
+    // Show loading screen for at least 2 seconds
+    setTimeout(checkAuth, 2000);
+  }, []);
+
+  useEffect(() => {
     const fetchData = async () => {
+      if (!isAuthenticated) return;
+
       try {
-        setLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 2000));
         const response = await fetch('./Mockdata.json');
         const data = await response.json();
         setState(prev => ({
@@ -1304,12 +1344,20 @@ export default function App() {
         }));
       } catch (error) {
         console.error("Failed to fetch mock data:", error);
-      } finally {
-        setLoading(false);
       }
     };
     fetchData();
-  }, []);
+  }, [isAuthenticated]);
+
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+    localStorage.setItem('isAuthenticated', 'true');
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    localStorage.removeItem('isAuthenticated');
+  };
 
   const toggleTask = (id: string) => {
     setState(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === id ? { ...t, isCompleted: !t.isCompleted } : t) }));
@@ -1337,20 +1385,11 @@ export default function App() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-deepnavy flex items-center justify-center font-sans overflow-hidden">
-        <div className="flex flex-col items-center gap-6">
-          <div className="relative">
-            <Loader2 className="w-16 h-16 text-pilot-orange animate-spin" />
-            <Zap className="w-6 h-6 text-pilot-orange absolute inset-0 m-auto animate-pulse" fill="currentColor" />
-          </div>
-          <div className="flex flex-col items-center">
-            <p className="text-[12px] font-black uppercase tracking-[0.6em] text-white animate-pulse">INITIATING PILOT</p>
-            <p className="text-[9px] font-bold uppercase tracking-[0.4em] text-white/10 mt-3">SYNCHRONISING NEURAL INTERFACE...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={handleLogin} />;
   }
 
   return (
@@ -1358,7 +1397,7 @@ export default function App() {
       <div className="min-h-screen bg-deepnavy flex text-white font-sans selection:bg-pilot-orange/30">
         <Sidebar isCollapsed={false} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
         <main className="flex-1 transition-all duration-300 ease-in-out p-6 lg:p-12 lg:ml-72 flex flex-col h-screen overflow-hidden relative">
-          <TopBar toggleSidebar={() => setIsSidebarOpen(true)} />
+          <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} />
           <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-12">
             <Routes>
               <Route path="/" element={<WorkdayPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} setEnergy={setEnergy} />} />
