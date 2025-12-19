@@ -51,6 +51,7 @@ import { EnergyLevel, Task, Project, DailyReport, AppState, CalendarEvent, Recur
 import { ENERGY_LEVELS, CATEGORIES } from './constants';
 import { generateDailyReport, getWeeklyInsights } from './services/geminiService';
 import notificationService from './services/notificationService';
+import { firestoreService } from './services/firestoreService';
 import PomodoroTimer from './components/PomodoroTimer';
 import LoginPage from './components/LoginPage';
 import LoadingScreen from './components/LoadingScreen';
@@ -1468,26 +1469,55 @@ export default function App() {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!isAuthenticated) return;
+      if (!isAuthenticated || !currentUser) return;
 
       try {
-        const response = await fetch('./Mockdata.json');
-        const data = await response.json();
+        info('Loading your data...');
+
+        // Load all data from Firestore
+        const [tasks, projects, calendarEvents, recurringTasks, dailyReports] = await Promise.all([
+          firestoreService.getTasks(currentUser.uid),
+          firestoreService.getProjects(currentUser.uid),
+          firestoreService.getCalendarEvents(currentUser.uid),
+          firestoreService.getRecurringTasks(currentUser.uid),
+          firestoreService.getDailyReports(currentUser.uid),
+        ]);
+
         setState(prev => ({
           ...prev,
-          tasks: data.tasks,
-          projects: data.projects,
-          calendarEvents: data.calendarEvents,
-          recurringTasks: data.recurringTasks,
-          dailyReports: data.dailyReports,
+          tasks: tasks.length > 0 ? tasks : prev.tasks,
+          projects: projects.length > 0 ? projects : prev.projects,
+          calendarEvents: calendarEvents.length > 0 ? calendarEvents : prev.calendarEvents,
+          recurringTasks: recurringTasks.length > 0 ? recurringTasks : prev.recurringTasks,
+          dailyReports: dailyReports.length > 0 ? dailyReports : prev.dailyReports,
           currentStreak: 12,
         }));
+
+        success('Data loaded successfully!');
       } catch (error) {
-        console.error("Failed to fetch mock data:", error);
+        console.error("Failed to fetch data from Firestore:", error);
+        error('Failed to load data. Using offline mode.');
+
+        // Fallback to mock data if Firestore fails
+        try {
+          const response = await fetch('./Mockdata.json');
+          const data = await response.json();
+          setState(prev => ({
+            ...prev,
+            tasks: data.tasks,
+            projects: data.projects,
+            calendarEvents: data.calendarEvents,
+            recurringTasks: data.recurringTasks,
+            dailyReports: data.dailyReports,
+            currentStreak: 12,
+          }));
+        } catch (fallbackError) {
+          console.error("Failed to fetch mock data:", fallbackError);
+        }
       }
     };
     fetchData();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, currentUser]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -1628,31 +1658,69 @@ export default function App() {
     info('Signed out successfully');
   };
 
-  const toggleTask = (id: string) => {
+  const toggleTask = async (id: string) => {
     const task = state.tasks.find(t => t.id === id);
     if (task) {
       // Add to history before changing
       setHistory(prev => [...prev, { type: 'task_toggle', data: task, timestamp: Date.now() }]);
       setRedoStack([]); // Clear redo stack on new action
+
+      // Update in Firestore
+      if (currentUser) {
+        await firestoreService.updateTask(id, { isCompleted: !task.isCompleted });
+      }
     }
     setState(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === id ? { ...t, isCompleted: !t.isCompleted } : t) }));
     success('Task updated!');
   };
 
-  const updateTask = (id: string, updates: Partial<Task>) => {
+  const updateTask = async (id: string, updates: Partial<Task>) => {
     const task = state.tasks.find(t => t.id === id);
     if (task) {
       // Add to history before changing
       setHistory(prev => [...prev, { type: 'task_update', data: task, timestamp: Date.now() }]);
       setRedoStack([]); // Clear redo stack on new action
+
+      // Update in Firestore
+      if (currentUser) {
+        await firestoreService.updateTask(id, updates);
+      }
     }
     setState(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === id ? { ...t, ...updates } : t) }));
   };
 
-  const duplicateTask = (id: string) => {
+  const duplicateTask = async (id: string) => {
     const task = state.tasks.find(t => t.id === id);
-    if (task) {
-      const newTask = { ...task, id: Math.random().toString(36).substr(2, 9), title: `${task.title} (Copy)`, isCompleted: false };
+    if (task && currentUser) {
+      const newTaskData = {
+        title: `${task.title} (Copy)`,
+        description: task.description,
+        category: task.category,
+        projectId: task.projectId,
+        energyRequired: task.energyRequired,
+        isCompleted: false,
+        dueDate: task.dueDate,
+        createdAt: new Date().toISOString(),
+        isRecurring: task.isRecurring,
+        recurringInterval: task.recurringInterval
+      };
+
+      // Add to Firestore
+      const newTaskId = await firestoreService.addTask(currentUser.uid, newTaskData);
+      const newTask: Task = {
+        id: String(newTaskId),
+        title: newTaskData.title,
+        description: newTaskData.description,
+        category: newTaskData.category,
+        projectId: newTaskData.projectId,
+        energyRequired: newTaskData.energyRequired,
+        isCompleted: newTaskData.isCompleted,
+        dueDate: newTaskData.dueDate,
+        createdAt: newTaskData.createdAt,
+        isRecurring: newTaskData.isRecurring,
+        recurringInterval: newTaskData.recurringInterval
+      };
+
       // Add to history for undo
       setHistory(prev => [...prev, { type: 'task_create', data: newTask, timestamp: Date.now() }]);
       setRedoStack([]);
@@ -1661,12 +1729,18 @@ export default function App() {
     }
   };
 
-  const deleteTask = (id: string) => {
+  const deleteTask = async (id: string) => {
     const task = state.tasks.find(t => t.id === id);
     if (task) {
       // Add to history before deleting
       setHistory(prev => [...prev, { type: 'task_delete', data: task, timestamp: Date.now() }]);
       setRedoStack([]);
+
+      // Delete from Firestore
+      if (currentUser) {
+        await firestoreService.deleteTask(id);
+      }
+
       setState(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== id) }));
       success('Task deleted!');
     }
