@@ -1045,10 +1045,16 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [flowInsights, setFlowInsights] = useState<string[]>([]);
 
-  const selectedReport = useMemo(() => 
+  const selectedReport = useMemo(() =>
     reports.find(r => r.date === selectedReportDate),
     [reports, selectedReportDate]
   );
+
+  // Get tasks completed today
+  const todayTasks = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return tasks.filter(t => t.isCompleted && t.createdAt.startsWith(today));
+  }, [tasks]);
 
   const weeklyChartData = [
     { day: 'SUN', v: 4 }, { day: 'MON', v: 3 }, { day: 'TUE', v: 7 }, { day: 'WED', v: 12 }, { day: 'THU', v: 10 }, { day: 'FRI', v: 6 }, { day: 'SAT', v: 0 },
@@ -1109,6 +1115,79 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Today's Tasks Table */}
+      <section className={THEME.card}>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 size={24} className="text-pilot-orange" />
+            <h3 className="text-xl font-black text-white uppercase tracking-widest">Today's Completed Tasks</h3>
+          </div>
+          <div className="px-4 py-2 bg-pilot-orange/10 border border-pilot-orange/20 rounded-lg">
+            <span className="text-xs font-black text-pilot-orange uppercase tracking-wider">{todayTasks.length} Tasks</span>
+          </div>
+        </div>
+
+        {todayTasks.length > 0 ? (
+          <div className="bg-white/[0.01] border border-white/5 rounded-xl overflow-hidden">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-[10px] font-black uppercase text-white/20 border-b border-white/5 bg-white/[0.02]">
+                  <th className="px-6 py-4">Task</th>
+                  <th className="px-6 py-4">Project</th>
+                  <th className="px-6 py-4">Collaboration</th>
+                  <th className="px-6 py-4">Energy</th>
+                  <th className="px-6 py-4">Subtasks</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {todayTasks.map((task) => (
+                  <tr key={task.id} className="group hover:bg-white/[0.02] transition-colors">
+                    <td className="px-6 py-4">
+                      <p className="text-sm font-bold text-white/80 group-hover:text-pilot-orange transition-colors">{task.title}</p>
+                      {task.description && (
+                        <p className="text-xs text-white/40 mt-1 line-clamp-1">{task.description}</p>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs font-bold text-white/50">{task.projectId || '-'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <Users size={12} className="text-white/20" />
+                        <span className="text-xs font-bold text-white/50">{task.collaboration || 'Solo'}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`text-xs font-black px-3 py-1 rounded-full ${
+                        task.energyRequired === 'High' ? 'bg-red-500/20 text-red-400' :
+                        task.energyRequired === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-green-500/20 text-green-400'
+                      }`}>
+                        {task.energyRequired}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {task.subtasks && task.subtasks.length > 0 ? (
+                        <span className="text-xs font-bold text-white/40">
+                          {task.subtasks.filter(st => st.isCompleted).length}/{task.subtasks.length}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-white/20">-</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-16 bg-white/[0.01] border border-white/5 rounded-xl">
+            <CheckCircle2 size={40} className="mx-auto mb-4 text-white/10" />
+            <p className="text-sm font-bold text-white/30 uppercase tracking-wider">No tasks completed today yet</p>
+          </div>
+        )}
       </section>
 
       <section className="space-y-4">
