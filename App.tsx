@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { 
-  Home, 
-  BarChart2, 
-  Layers, 
-  Calendar, 
-  Zap, 
-  CheckCircle2, 
-  Plus, 
+import {
+  Home,
+  BarChart2,
+  Layers,
+  Calendar,
+  Zap,
+  CheckCircle2,
+  Plus,
   TrendingUp,
   Brain,
   X,
@@ -44,7 +44,8 @@ import {
   PieChart as PieChartIcon,
   Activity,
   ChevronRightSquare,
-  MoreHorizontal
+  MoreHorizontal,
+  Printer
 } from 'lucide-react';
 import { EnergyLevel, Task, Project, DailyReport, AppState, CalendarEvent, RecurringTask } from './types';
 import { ENERGY_LEVELS, CATEGORIES } from './constants';
@@ -89,6 +90,7 @@ interface WorkdayPageProps {
   setEnergy: (level: EnergyLevel) => void;
   duplicateTask: (id: string) => void;
   deleteTask: (id: string) => void;
+  searchQuery?: string;
 }
 
 // --- Sidebar Component ---
@@ -165,7 +167,7 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen }: { isCollapsed: boolean; isO
 
 // --- Header Component ---
 
-const TopBar = ({ toggleSidebar, onLogout, onShowProfile, user, focusMode, toggleFocusMode }: { toggleSidebar: () => void; onLogout: () => void; onShowProfile: () => void; user: any; focusMode: boolean; toggleFocusMode: () => void }) => {
+const TopBar = ({ toggleSidebar, onLogout, onShowProfile, user, focusMode, toggleFocusMode, searchQuery, setSearchQuery }: { toggleSidebar: () => void; onLogout: () => void; onShowProfile: () => void; user: any; focusMode: boolean; toggleFocusMode: () => void; searchQuery: string; setSearchQuery: (q: string) => void }) => {
   const [time, setTime] = useState(new Date());
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -200,8 +202,18 @@ const TopBar = ({ toggleSidebar, onLogout, onShowProfile, user, focusMode, toggl
           <input
             type="text"
             placeholder="QUICK SEARCH..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className={`${THEME.input} w-full pl-11 py-2.5 font-bold uppercase tracking-widest`}
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
         <button className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all relative">
           <Bell size={20} />
@@ -396,7 +408,7 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing,
 
 // --- Workday Page ---
 
-const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, duplicateTask, deleteTask }: WorkdayPageProps) => {
+const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, duplicateTask, deleteTask, searchQuery = '' }: WorkdayPageProps) => {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [isTimerActive, setIsTimerActive] = useState(false);
   const activeTask = useMemo(() => state.tasks.find(t => t.id === activeTaskId) || null, [state.tasks, activeTaskId]);
@@ -408,11 +420,24 @@ const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, dupli
 
   const filteredTasks = useMemo(() => {
     let result = state.tasks.filter(t => !t.isCompleted);
+
+    // Filter by energy
     if (energyFilter !== 'All') {
       result = result.filter(t => t.energyRequired === energyFilter);
     }
+
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(t =>
+        t.title.toLowerCase().includes(query) ||
+        t.description?.toLowerCase().includes(query) ||
+        state.projects.find(p => p.id === t.projectId)?.name.toLowerCase().includes(query)
+      );
+    }
+
     return result;
-  }, [state.tasks, energyFilter]);
+  }, [state.tasks, state.projects, energyFilter, searchQuery]);
 
   const handleEndDay = async () => {
     setIsGeneratingReport(true);
@@ -897,11 +922,28 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
   };
 
   return (
-    <div className="animate-in fade-in duration-500 pb-12 space-y-12 relative">
+    <div className="animate-in fade-in duration-500 pb-12 space-y-12 relative print-container">
+      <button
+        onClick={() => window.print()}
+        className="no-print fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-pilot-orange hover:bg-pilot-orange/90 text-white font-bold rounded-lg shadow-2xl transition-all hover:scale-105 active:scale-95"
+      >
+        <Printer size={20} />
+        <span className="hidden md:inline">Print Report</span>
+      </button>
+
       <section className={THEME.card}>
-        <div className="flex items-center gap-3 mb-10">
-           <TrendingUp size={24} className="text-pilot-orange" />
-           <h3 className="text-xl font-black text-white uppercase tracking-widest">PRODUCTIVITY OVERVIEW</h3>
+        <div className="flex items-center justify-between mb-10">
+          <div className="flex items-center gap-3">
+            <TrendingUp size={24} className="text-pilot-orange" />
+            <h3 className="text-xl font-black text-white uppercase tracking-widest">PRODUCTIVITY OVERVIEW</h3>
+          </div>
+          <button
+            onClick={() => window.print()}
+            className="no-print flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white/70 hover:text-white transition-all"
+          >
+            <Printer size={16} />
+            <span className="text-xs font-bold uppercase tracking-wider">Print</span>
+          </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
@@ -1367,6 +1409,7 @@ export default function App() {
   const [showProfile, setShowProfile] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const { toasts, removeToast, success, error, info } = useToast();
   const [state, setState] = useState<AppState>({
     tasks: [],
@@ -1665,7 +1708,7 @@ export default function App() {
       <div className={`min-h-screen bg-deepnavy flex text-white font-sans selection:bg-pilot-orange/30 ${focusMode ? 'focus-mode' : ''}`}>
         {!focusMode && <Sidebar isCollapsed={false} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />}
         <main className={`flex-1 transition-all duration-300 ease-in-out p-6 lg:p-12 ${!focusMode ? 'lg:ml-72' : ''} flex flex-col h-screen overflow-hidden relative`}>
-          {!focusMode && <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} onShowProfile={() => setShowProfile(true)} user={currentUser} focusMode={focusMode} toggleFocusMode={() => setFocusMode(!focusMode)} />}
+          {!focusMode && <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} onShowProfile={() => setShowProfile(true)} user={currentUser} focusMode={focusMode} toggleFocusMode={() => setFocusMode(!focusMode)} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />}
           {focusMode && (
             <button
               onClick={() => setFocusMode(false)}
@@ -1680,7 +1723,7 @@ export default function App() {
           )}
           <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-12">
             <Routes>
-              <Route path="/" element={<WorkdayPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} setEnergy={setEnergy} duplicateTask={duplicateTask} deleteTask={deleteTask} />} />
+              <Route path="/" element={<WorkdayPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} setEnergy={setEnergy} duplicateTask={duplicateTask} deleteTask={deleteTask} searchQuery={searchQuery} />} />
               <Route path="/planner" element={<WeeklyPlannerPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} />} />
               <Route path="/projects" element={<ProjectsPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} addProject={addProject} duplicateTask={duplicateTask} deleteTask={deleteTask} />} />
               <Route path="/projects/:projectId" element={<ProjectsPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} addProject={addProject} duplicateTask={duplicateTask} deleteTask={deleteTask} />} />
