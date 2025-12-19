@@ -95,7 +95,7 @@ interface WorkdayPageProps {
 
 // --- Sidebar Component ---
 
-const Sidebar = ({ isCollapsed, isOpen, setIsOpen }: { isCollapsed: boolean; isOpen: boolean; setIsOpen: (v: boolean) => void }) => {
+const Sidebar = ({ isCollapsed, isOpen, setIsOpen, toggleCollapse }: { isCollapsed: boolean; isOpen: boolean; setIsOpen: (v: boolean) => void; toggleCollapse: () => void }) => {
   const location = useLocation();
   
   const sections = [
@@ -135,7 +135,7 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen }: { isCollapsed: boolean; isO
             {!isCollapsed && <h1 className="text-xl font-black tracking-tighter text-white whitespace-nowrap">PACE PILOT</h1>}
           </div>
           
-          <div className="space-y-10">
+          <div className="space-y-10 flex-1">
             {sections.map((section, idx) => (
               <div key={idx} className="space-y-4">
                 {!isCollapsed && <p className={THEME.label}>{section.title}</p>}
@@ -159,6 +159,20 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen }: { isCollapsed: boolean; isO
               </div>
             ))}
           </div>
+
+          {/* Collapse Toggle Button */}
+          <button
+            onClick={toggleCollapse}
+            className="hidden lg:flex mt-auto items-center justify-center gap-2 p-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 hover:text-white transition-all group"
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? <ChevronRight size={18} /> : (
+              <>
+                <ChevronLeft size={18} />
+                <span className="text-xs font-bold uppercase tracking-wider">Collapse</span>
+              </>
+            )}
+          </button>
         </div>
       </aside>
     </>
@@ -1403,6 +1417,7 @@ const CalendarPage = ({ events, onAdd }: { events: CalendarEvent[], onAdd: (ev: 
 
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -1702,12 +1717,12 @@ export default function App() {
     <HashRouter>
       <ToastContainer toasts={toasts} onClose={removeToast} />
       {showProfile && currentUser && (
-        <UserProfile user={currentUser} onClose={() => setShowProfile(false)} onLogout={handleLogout} />
+        <UserProfile user={currentUser} onClose={() => setShowProfile(false)} onLogout={handleLogout} onExport={exportDataAsJSON} />
       )}
       <KeyboardShortcuts isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
       <div className={`min-h-screen bg-deepnavy flex text-white font-sans selection:bg-pilot-orange/30 ${focusMode ? 'focus-mode' : ''}`}>
-        {!focusMode && <Sidebar isCollapsed={false} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />}
-        <main className={`flex-1 transition-all duration-300 ease-in-out p-6 lg:p-12 ${!focusMode ? 'lg:ml-72' : ''} flex flex-col h-screen overflow-hidden relative`}>
+        {!focusMode && <Sidebar isCollapsed={isSidebarCollapsed} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)} />}
+        <main className={`flex-1 transition-all duration-300 ease-in-out p-6 lg:p-12 ${!focusMode ? (isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72') : ''} flex flex-col h-screen overflow-hidden relative`}>
           {!focusMode && <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} onShowProfile={() => setShowProfile(true)} user={currentUser} focusMode={focusMode} toggleFocusMode={() => setFocusMode(!focusMode)} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />}
           {focusMode && (
             <button
