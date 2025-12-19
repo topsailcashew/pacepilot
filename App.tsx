@@ -47,7 +47,8 @@ import {
   MoreHorizontal,
   Printer,
   Sun,
-  Moon
+  Moon,
+  Music
 } from 'lucide-react';
 import { EnergyLevel, Task, Project, DailyReport, AppState, CalendarEvent, RecurringTask, Subtask } from './types';
 import { ENERGY_LEVELS, CATEGORIES } from './constants';
@@ -61,6 +62,7 @@ import UserProfile from './components/UserProfile';
 import { ToastContainer, useToast } from './components/Toast';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
 import MobileBottomNav from './components/MobileBottomNav';
+import MusicPlayer from './components/MusicPlayer';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
@@ -186,7 +188,7 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen, toggleCollapse }: { isCollaps
 
 // --- Header Component ---
 
-const TopBar = ({ toggleSidebar, onLogout, onShowProfile, user, focusMode, toggleFocusMode, searchQuery, setSearchQuery, theme, toggleTheme }: { toggleSidebar: () => void; onLogout: () => void; onShowProfile: () => void; user: any; focusMode: boolean; toggleFocusMode: () => void; searchQuery: string; setSearchQuery: (q: string) => void; theme: 'light' | 'dark'; toggleTheme: () => void }) => {
+const TopBar = ({ toggleSidebar, onLogout, onShowProfile, user, focusMode, toggleFocusMode, searchQuery, setSearchQuery, theme, toggleTheme, onShowMusicPlayer }: { toggleSidebar: () => void; onLogout: () => void; onShowProfile: () => void; user: any; focusMode: boolean; toggleFocusMode: () => void; searchQuery: string; setSearchQuery: (q: string) => void; theme: 'light' | 'dark'; toggleTheme: () => void; onShowMusicPlayer: () => void }) => {
   const [time, setTime] = useState(new Date());
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -244,6 +246,13 @@ const TopBar = ({ toggleSidebar, onLogout, onShowProfile, user, focusMode, toggl
           title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         >
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
+        <button
+          onClick={onShowMusicPlayer}
+          className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-pilot-orange hover:bg-white/5 transition-all"
+          title="Music Player"
+        >
+          <Music size={20} />
         </button>
         <button
           onClick={toggleFocusMode}
@@ -1587,6 +1596,7 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [showMusicPlayer, setShowMusicPlayer] = useState(false);
   const { toasts, removeToast, success, error, info } = useToast();
   const [state, setState] = useState<AppState>({
     tasks: [],
@@ -1994,7 +2004,7 @@ export default function App() {
       <div className={`min-h-screen flex font-sans selection:bg-pilot-orange/30 ${focusMode ? 'focus-mode' : ''} ${theme === 'dark' ? 'bg-deepnavy text-white' : 'bg-gray-50 text-gray-900'}`}>
         {!focusMode && <Sidebar isCollapsed={isSidebarCollapsed} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)} />}
         <main className={`flex-1 transition-all duration-300 ease-in-out p-6 lg:p-12 ${!focusMode ? (isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72') : ''} flex flex-col h-screen overflow-hidden relative`}>
-          {!focusMode && <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} onShowProfile={() => setShowProfile(true)} user={currentUser} focusMode={focusMode} toggleFocusMode={() => setFocusMode(!focusMode)} searchQuery={searchQuery} setSearchQuery={setSearchQuery} theme={theme} toggleTheme={toggleTheme} />}
+          {!focusMode && <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} onShowProfile={() => setShowProfile(true)} user={currentUser} focusMode={focusMode} toggleFocusMode={() => setFocusMode(!focusMode)} searchQuery={searchQuery} setSearchQuery={setSearchQuery} theme={theme} toggleTheme={toggleTheme} onShowMusicPlayer={() => setShowMusicPlayer(true)} />}
           {focusMode && (
             <button
               onClick={() => setFocusMode(false)}
@@ -2022,6 +2032,7 @@ export default function App() {
         </main>
         {!focusMode && <MobileBottomNav />}
       </div>
+      {showMusicPlayer && <MusicPlayer onClose={() => setShowMusicPlayer(false)} />}
       <style>{`
         @keyframes bounce-short { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
         .animate-bounce-short { animation: bounce-short 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
