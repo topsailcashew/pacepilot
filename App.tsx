@@ -52,6 +52,9 @@ import { generateDailyReport, getWeeklyInsights } from './services/geminiService
 import PomodoroTimer from './components/PomodoroTimer';
 import LoginPage from './components/LoginPage';
 import LoadingScreen from './components/LoadingScreen';
+import UserProfile from './components/UserProfile';
+import { ToastContainer, useToast } from './components/Toast';
+import KeyboardShortcuts from './components/KeyboardShortcuts';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
@@ -74,6 +77,8 @@ interface TaskItemProps {
   updateTask: (id: string, updates: Partial<Task>) => void;
   onFocus: (task: Task) => void;
   isFocusing: boolean;
+  onDuplicate: (id: string) => void;
+  onDelete: (id: string) => void;
 }
 
 interface WorkdayPageProps {
@@ -82,6 +87,8 @@ interface WorkdayPageProps {
   toggleTask: (id: string) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   setEnergy: (level: EnergyLevel) => void;
+  duplicateTask: (id: string) => void;
+  deleteTask: (id: string) => void;
 }
 
 // --- Sidebar Component ---
@@ -158,9 +165,9 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen }: { isCollapsed: boolean; isO
 
 // --- Header Component ---
 
-const TopBar = ({ toggleSidebar, onLogout }: { toggleSidebar: () => void; onLogout: () => void }) => {
+const TopBar = ({ toggleSidebar, onLogout, onShowProfile, user, focusMode, toggleFocusMode }: { toggleSidebar: () => void; onLogout: () => void; onShowProfile: () => void; user: any; focusMode: boolean; toggleFocusMode: () => void }) => {
   const [time, setTime] = useState(new Date());
-  const [showLogoutMenu, setShowLogoutMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -196,24 +203,50 @@ const TopBar = ({ toggleSidebar, onLogout }: { toggleSidebar: () => void; onLogo
             className={`${THEME.input} w-full pl-11 py-2.5 font-bold uppercase tracking-widest`}
           />
         </div>
-        <button className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all">
+        <button className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all relative">
           <Bell size={20} />
+          <span className="absolute top-1 right-1 w-2 h-2 bg-pilot-orange rounded-full animate-pulse"></span>
+        </button>
+        <button
+          onClick={toggleFocusMode}
+          className={`border p-2.5 rounded-lg transition-all ${
+            focusMode
+              ? 'bg-pilot-orange border-pilot-orange text-white'
+              : 'bg-prussianblue border-white/10 text-white/40 hover:text-white hover:bg-white/5'
+          }`}
+          title={focusMode ? 'Exit Focus Mode (F)' : 'Enter Focus Mode (F)'}
+        >
+          <Target size={20} />
         </button>
         <div className="relative">
           <button
-            onClick={() => setShowLogoutMenu(!showLogoutMenu)}
-            className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all"
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2"
           >
-            <Settings size={20} />
+            <Users size={20} />
           </button>
-          {showLogoutMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-prussianblue border border-white/10 rounded-lg shadow-xl z-50">
+          {showUserMenu && (
+            <div className="absolute right-0 mt-2 w-56 bg-prussianblue border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden animate-in slide-in-from-top-2 duration-200">
+              <div className="p-3 border-b border-white/5 bg-white/5">
+                <p className="text-xs font-bold text-white/40 uppercase tracking-wider mb-1">Signed in as</p>
+                <p className="text-sm font-bold text-white truncate">{user?.email || 'User'}</p>
+              </div>
               <button
                 onClick={() => {
-                  setShowLogoutMenu(false);
-                  onLogout();
+                  setShowUserMenu(false);
+                  onShowProfile();
                 }}
                 className="w-full text-left px-4 py-3 text-sm font-bold text-white/70 hover:text-pilot-orange hover:bg-white/5 transition-all flex items-center gap-2"
+              >
+                <Users size={14} />
+                <span className="uppercase tracking-wider">View Profile</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowUserMenu(false);
+                  onLogout();
+                }}
+                className="w-full text-left px-4 py-3 text-sm font-bold text-white/70 hover:text-red-400 hover:bg-white/5 transition-all flex items-center gap-2 border-t border-white/5"
               >
                 <ArrowLeft size={14} />
                 <span className="uppercase tracking-wider">Sign Out</span>
@@ -246,7 +279,7 @@ const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose:
 
 // --- Task Item Component ---
 
-const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing }: TaskItemProps) => {
+const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing, onDuplicate, onDelete }: TaskItemProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
 
@@ -333,6 +366,28 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing 
               </div>
             </div>
           </div>
+          <div className="mt-6 pt-4 border-t border-white/5 flex items-center gap-3">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDuplicate(task.id);
+              }}
+              className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-bold text-white/70 hover:text-pilot-orange transition-all flex items-center justify-center gap-2"
+            >
+              <PlusCircle size={14} />
+              DUPLICATE
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(task.id);
+              }}
+              className="flex-1 px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-xs font-bold text-red-400 hover:text-red-300 transition-all flex items-center justify-center gap-2"
+            >
+              <X size={14} />
+              DELETE
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -341,7 +396,7 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing 
 
 // --- Workday Page ---
 
-const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy }: WorkdayPageProps) => {
+const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, duplicateTask, deleteTask }: WorkdayPageProps) => {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [isTimerActive, setIsTimerActive] = useState(false);
   const activeTask = useMemo(() => state.tasks.find(t => t.id === activeTaskId) || null, [state.tasks, activeTaskId]);
@@ -482,14 +537,16 @@ const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy }: Wor
               </div>
             ) : (
               filteredTasks.map((task) => (
-                <TaskItem 
-                  key={task.id} 
-                  task={task} 
+                <TaskItem
+                  key={task.id}
+                  task={task}
                   projects={state.projects}
-                  toggleTask={toggleTask} 
-                  updateTask={updateTask} 
-                  onFocus={(t) => setActiveTaskId(t.id)} 
-                  isFocusing={activeTaskId === task.id} 
+                  toggleTask={toggleTask}
+                  updateTask={updateTask}
+                  onFocus={(t) => setActiveTaskId(t.id)}
+                  isFocusing={activeTaskId === task.id}
+                  onDuplicate={duplicateTask}
+                  onDelete={deleteTask}
                 />
               ))
             )}
@@ -1110,12 +1167,14 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
 };
 
 // --- Projects Page component ---
-const ProjectsPage = ({ state, setState, toggleTask, updateTask, addProject }: {
+const ProjectsPage = ({ state, setState, toggleTask, updateTask, addProject, duplicateTask, deleteTask }: {
   state: AppState;
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   toggleTask: (id: string) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   addProject: (name: string) => void;
+  duplicateTask: (id: string) => void;
+  deleteTask: (id: string) => void;
 }) => {
   const { projectId } = useParams<{ projectId?: string }>();
   const [isAddingProject, setIsAddingProject] = useState(false);
@@ -1183,14 +1242,16 @@ const ProjectsPage = ({ state, setState, toggleTask, updateTask, addProject }: {
                   </div>
                 ) : (
                   projectTasks.map(task => (
-                    <TaskItem 
-                      key={task.id} 
-                      task={task} 
+                    <TaskItem
+                      key={task.id}
+                      task={task}
                       projects={state.projects}
-                      toggleTask={toggleTask} 
+                      toggleTask={toggleTask}
                       updateTask={updateTask}
-                      onFocus={() => {}} 
+                      onFocus={() => {}}
                       isFocusing={false}
+                      onDuplicate={duplicateTask}
+                      onDelete={deleteTask}
                     />
                   ))
                 )}
@@ -1302,6 +1363,11 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [showProfile, setShowProfile] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const { toasts, removeToast, success, error, info } = useToast();
   const [state, setState] = useState<AppState>({
     tasks: [],
     projects: [],
@@ -1349,22 +1415,74 @@ export default function App() {
     fetchData();
   }, [isAuthenticated]);
 
-  const handleLogin = () => {
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      // ? key for Keyboard Shortcuts overlay
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setShowShortcuts(true);
+      }
+
+      // Esc key to close overlays
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (showShortcuts) setShowShortcuts(false);
+        if (showProfile) setShowProfile(false);
+      }
+
+      // F key for Focus Mode
+      if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey && !showShortcuts && !showProfile) {
+        e.preventDefault();
+        setFocusMode(prev => !prev);
+        info(focusMode ? 'Focus mode disabled' : 'Focus mode enabled');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [focusMode, info, showShortcuts, showProfile]);
+
+  const handleLogin = (user?: any) => {
     setIsAuthenticated(true);
+    setCurrentUser(user || { email: 'demo@pacepilot.app', uid: 'demo-user', metadata: { creationTime: new Date().toISOString(), lastSignInTime: new Date().toISOString() } });
     localStorage.setItem('isAuthenticated', 'true');
+    success('Welcome back to Pace Pilot!');
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
+    setCurrentUser(null);
     localStorage.removeItem('isAuthenticated');
+    info('Signed out successfully');
   };
 
   const toggleTask = (id: string) => {
     setState(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === id ? { ...t, isCompleted: !t.isCompleted } : t) }));
+    success('Task updated!');
   };
 
   const updateTask = (id: string, updates: Partial<Task>) => {
     setState(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === id ? { ...t, ...updates } : t) }));
+  };
+
+  const duplicateTask = (id: string) => {
+    const task = state.tasks.find(t => t.id === id);
+    if (task) {
+      const newTask = { ...task, id: Math.random().toString(36).substr(2, 9), title: `${task.title} (Copy)`, isCompleted: false };
+      setState(prev => ({ ...prev, tasks: [...prev.tasks, newTask] }));
+      success('Task duplicated!');
+    }
+  };
+
+  const deleteTask = (id: string) => {
+    setState(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== id) }));
+    success('Task deleted!');
   };
 
   const toggleRecurring = (id: string) => {
@@ -1394,16 +1512,33 @@ export default function App() {
 
   return (
     <HashRouter>
-      <div className="min-h-screen bg-deepnavy flex text-white font-sans selection:bg-pilot-orange/30">
-        <Sidebar isCollapsed={false} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
-        <main className="flex-1 transition-all duration-300 ease-in-out p-6 lg:p-12 lg:ml-72 flex flex-col h-screen overflow-hidden relative">
-          <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} />
+      <ToastContainer toasts={toasts} onClose={removeToast} />
+      {showProfile && currentUser && (
+        <UserProfile user={currentUser} onClose={() => setShowProfile(false)} onLogout={handleLogout} />
+      )}
+      <KeyboardShortcuts isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      <div className={`min-h-screen bg-deepnavy flex text-white font-sans selection:bg-pilot-orange/30 ${focusMode ? 'focus-mode' : ''}`}>
+        {!focusMode && <Sidebar isCollapsed={false} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />}
+        <main className={`flex-1 transition-all duration-300 ease-in-out p-6 lg:p-12 ${!focusMode ? 'lg:ml-72' : ''} flex flex-col h-screen overflow-hidden relative`}>
+          {!focusMode && <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} onShowProfile={() => setShowProfile(true)} user={currentUser} focusMode={focusMode} toggleFocusMode={() => setFocusMode(!focusMode)} />}
+          {focusMode && (
+            <button
+              onClick={() => setFocusMode(false)}
+              className="fixed top-6 right-6 z-50 bg-pilot-orange hover:bg-pilot-orange/90 text-white p-3 rounded-full shadow-2xl transition-all hover:scale-110 active:scale-95 group"
+              title="Exit Focus Mode (F)"
+            >
+              <X size={24} />
+              <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-prussianblue border border-white/10 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                Exit Focus Mode (F)
+              </span>
+            </button>
+          )}
           <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-12">
             <Routes>
-              <Route path="/" element={<WorkdayPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} setEnergy={setEnergy} />} />
+              <Route path="/" element={<WorkdayPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} setEnergy={setEnergy} duplicateTask={duplicateTask} deleteTask={deleteTask} />} />
               <Route path="/planner" element={<WeeklyPlannerPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} />} />
-              <Route path="/projects" element={<ProjectsPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} addProject={addProject} />} />
-              <Route path="/projects/:projectId" element={<ProjectsPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} addProject={addProject} />} />
+              <Route path="/projects" element={<ProjectsPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} addProject={addProject} duplicateTask={duplicateTask} deleteTask={deleteTask} />} />
+              <Route path="/projects/:projectId" element={<ProjectsPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} addProject={addProject} duplicateTask={duplicateTask} deleteTask={deleteTask} />} />
               <Route path="/recurring" element={<RecurringTasksPage tasks={state.recurringTasks} onToggle={toggleRecurring} />} />
               <Route path="/reports" element={<ReportsPage reports={state.dailyReports} tasks={state.tasks} />} />
               <Route path="/calendar" element={<CalendarPage events={state.calendarEvents} onAdd={addCalendarEvent} />} />
