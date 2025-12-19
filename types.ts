@@ -1,6 +1,12 @@
 
 export type EnergyLevel = 'Low' | 'Medium' | 'High';
 
+export interface Subtask {
+  id: string;
+  title: string;
+  isCompleted: boolean;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -13,6 +19,7 @@ export interface Task {
   createdAt: string;
   isRecurring?: boolean;
   recurringInterval?: 'Daily' | 'Weekly' | 'Monthly';
+  subtasks?: Subtask[];
 }
 
 export interface Project {

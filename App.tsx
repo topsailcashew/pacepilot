@@ -45,9 +45,11 @@ import {
   Activity,
   ChevronRightSquare,
   MoreHorizontal,
-  Printer
+  Printer,
+  Sun,
+  Moon
 } from 'lucide-react';
-import { EnergyLevel, Task, Project, DailyReport, AppState, CalendarEvent, RecurringTask } from './types';
+import { EnergyLevel, Task, Project, DailyReport, AppState, CalendarEvent, RecurringTask, Subtask } from './types';
 import { ENERGY_LEVELS, CATEGORIES } from './constants';
 import { generateDailyReport, getWeeklyInsights } from './services/geminiService';
 import notificationService from './services/notificationService';
@@ -58,6 +60,7 @@ import LoadingScreen from './components/LoadingScreen';
 import UserProfile from './components/UserProfile';
 import { ToastContainer, useToast } from './components/Toast';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
+import MobileBottomNav from './components/MobileBottomNav';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
@@ -183,7 +186,7 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen, toggleCollapse }: { isCollaps
 
 // --- Header Component ---
 
-const TopBar = ({ toggleSidebar, onLogout, onShowProfile, user, focusMode, toggleFocusMode, searchQuery, setSearchQuery }: { toggleSidebar: () => void; onLogout: () => void; onShowProfile: () => void; user: any; focusMode: boolean; toggleFocusMode: () => void; searchQuery: string; setSearchQuery: (q: string) => void }) => {
+const TopBar = ({ toggleSidebar, onLogout, onShowProfile, user, focusMode, toggleFocusMode, searchQuery, setSearchQuery, theme, toggleTheme }: { toggleSidebar: () => void; onLogout: () => void; onShowProfile: () => void; user: any; focusMode: boolean; toggleFocusMode: () => void; searchQuery: string; setSearchQuery: (q: string) => void; theme: 'light' | 'dark'; toggleTheme: () => void }) => {
   const [time, setTime] = useState(new Date());
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -234,6 +237,13 @@ const TopBar = ({ toggleSidebar, onLogout, onShowProfile, user, focusMode, toggl
         <button className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all relative">
           <Bell size={20} />
           <span className="absolute top-1 right-1 w-2 h-2 bg-pilot-orange rounded-full animate-pulse"></span>
+        </button>
+        <button
+          onClick={toggleTheme}
+          className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all"
+          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        >
+          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
         <button
           onClick={toggleFocusMode}
@@ -310,6 +320,7 @@ const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose:
 const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing, onDuplicate, onDelete }: TaskItemProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
   const handleToggleComplete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -318,6 +329,35 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing,
       toggleTask(task.id);
       setIsCompleting(false);
     }, 300);
+  };
+
+  const handleAddSubtask = (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (newSubtaskTitle.trim()) {
+      const newSubtask: Subtask = {
+        id: Math.random().toString(36).substr(2, 9),
+        title: newSubtaskTitle.trim(),
+        isCompleted: false
+      };
+      const updatedSubtasks = [...(task.subtasks || []), newSubtask];
+      updateTask(task.id, { subtasks: updatedSubtasks });
+      setNewSubtaskTitle('');
+    }
+  };
+
+  const handleToggleSubtask = (subtaskId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updatedSubtasks = (task.subtasks || []).map(st =>
+      st.id === subtaskId ? { ...st, isCompleted: !st.isCompleted } : st
+    );
+    updateTask(task.id, { subtasks: updatedSubtasks });
+  };
+
+  const handleDeleteSubtask = (subtaskId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updatedSubtasks = (task.subtasks || []).filter(st => st.id !== subtaskId);
+    updateTask(task.id, { subtasks: updatedSubtasks });
   };
 
   const currentProject = projects.find(p => p.id === task.projectId);
@@ -368,19 +408,20 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing,
       </div>
 
       {isExpanded && (
-        <div className="mt-6 pt-6 border-t border-white/5 grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top-2 duration-300" onClick={(e) => e.stopPropagation()}>
-          <div className="space-y-4">
-            <div>
-              <label className={THEME.label}>Context & Notes</label>
-              <textarea 
-                value={task.description || ''}
-                onChange={(e) => updateTask(task.id, { description: e.target.value })}
-                placeholder="NO DESCRIPTION..."
-                className="w-full bg-deepnavy border border-white/5 rounded-lg p-3 text-xs text-white/80 focus:outline-none h-24 resize-none placeholder:opacity-10"
-              />
+        <div className="mt-6 pt-6 border-t border-white/5 space-y-6 animate-in slide-in-from-top-2 duration-300" onClick={(e) => e.stopPropagation()}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className={THEME.label}>Context & Notes</label>
+                <textarea
+                  value={task.description || ''}
+                  onChange={(e) => updateTask(task.id, { description: e.target.value })}
+                  placeholder="NO DESCRIPTION..."
+                  className="w-full bg-deepnavy border border-white/5 rounded-lg p-3 text-xs text-white/80 focus:outline-none h-24 resize-none placeholder:opacity-10"
+                />
+              </div>
             </div>
-          </div>
-          <div className="space-y-4">
+            <div className="space-y-4">
              <div>
               <label className={THEME.label}>Assignment</label>
               <div className="px-4 py-2.5 bg-deepnavy border border-white/5 rounded-lg text-xs font-bold text-white/60">
@@ -394,7 +435,67 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing,
               </div>
             </div>
           </div>
-          <div className="mt-6 pt-4 border-t border-white/5 flex items-center gap-3">
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <label className={THEME.label}>Subtasks / Checklist</label>
+              <span className="text-xs font-bold text-white/20">
+                {task.subtasks?.filter(st => st.isCompleted).length || 0} / {task.subtasks?.length || 0}
+              </span>
+            </div>
+
+            <div className="space-y-2 mb-3">
+              {task.subtasks && task.subtasks.length > 0 ? (
+                task.subtasks.map(subtask => (
+                  <div key={subtask.id} className="flex items-center gap-3 p-3 bg-deepnavy border border-white/5 rounded-lg group hover:bg-white/[0.02] transition-all">
+                    <button
+                      onClick={(e) => handleToggleSubtask(subtask.id, e)}
+                      className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
+                        subtask.isCompleted
+                          ? 'bg-pilot-orange border-pilot-orange'
+                          : 'border-white/10 group-hover:border-pilot-orange/50'
+                      }`}
+                    >
+                      {subtask.isCompleted && <Check size={10} strokeWidth={4} className="text-white" />}
+                    </button>
+                    <span className={`flex-1 text-xs font-bold transition-all ${
+                      subtask.isCompleted ? 'line-through text-white/20' : 'text-white/60'
+                    }`}>
+                      {subtask.title}
+                    </span>
+                    <button
+                      onClick={(e) => handleDeleteSubtask(subtask.id, e)}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/10 rounded transition-all"
+                    >
+                      <X size={12} className="text-red-400" />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-white/20 text-center py-4 italic">No subtasks yet</p>
+              )}
+            </div>
+
+            <form onSubmit={handleAddSubtask} className="flex gap-2">
+              <input
+                type="text"
+                value={newSubtaskTitle}
+                onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                placeholder="ADD SUBTASK..."
+                className="flex-1 bg-deepnavy border border-white/5 rounded-lg px-3 py-2 text-xs text-white/80 focus:outline-none focus:border-pilot-orange/50 transition-all placeholder:opacity-10"
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 bg-pilot-orange/10 hover:bg-pilot-orange/20 border border-pilot-orange/20 rounded-lg text-xs font-bold text-pilot-orange transition-all flex items-center gap-2"
+              >
+                <Plus size={14} />
+                ADD
+              </button>
+            </form>
+          </div>
+
+          <div className="pt-4 border-t border-white/5 flex items-center gap-3">
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -1288,33 +1389,91 @@ const ProjectsPage = ({ state, setState, toggleTask, updateTask, addProject, dup
         </div>
 
         <div className="lg:col-span-3">
-           <div className={THEME.card}>
-              <h4 className="text-sm font-black text-white/40 uppercase tracking-widest mb-6">
-                {activeProject ? `MISSIONS IN ${activeProject.name}` : "SELECT A SECTOR TO VIEW MISSIONS"}
-              </h4>
-              <div className="space-y-3">
-                {projectTasks.length === 0 ? (
-                  <div className="text-center py-20 bg-white/[0.01] rounded-xl border border-dashed border-white/10">
-                    <Target size={40} className="mx-auto mb-4 text-white/5" />
-                    <p className="text-sm font-black text-white/20 uppercase tracking-widest">Sector Scan Clean • No Missions</p>
-                  </div>
-                ) : (
-                  projectTasks.map(task => (
-                    <TaskItem
-                      key={task.id}
-                      task={task}
-                      projects={state.projects}
-                      toggleTask={toggleTask}
-                      updateTask={updateTask}
-                      onFocus={() => {}}
-                      isFocusing={false}
-                      onDuplicate={duplicateTask}
-                      onDelete={deleteTask}
-                    />
-                  ))
-                )}
+          {activeProject && (
+            <div className={`${THEME.card} mb-6`}>
+              <div className="flex items-start justify-between mb-6">
+                <div>
+                  <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2">
+                    {activeProject.name}
+                  </h3>
+                  <p className={`${THEME.label}`}>Project Overview</p>
+                </div>
+                <div className="flex gap-2">
+                  <button className="p-2 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-all">
+                    <Settings size={16} className="text-white/40" />
+                  </button>
+                </div>
               </div>
-           </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className={`${THEME.innerCard}`}>
+                  <p className={`${THEME.label} mb-2`}>Total Tasks</p>
+                  <p className="text-3xl font-black text-white">{projectTasks.length}</p>
+                </div>
+                <div className={`${THEME.innerCard}`}>
+                  <p className={`${THEME.label} mb-2`}>Completed</p>
+                  <p className="text-3xl font-black text-pilot-orange">
+                    {projectTasks.filter(t => t.isCompleted).length}
+                  </p>
+                </div>
+                <div className={`${THEME.innerCard}`}>
+                  <p className={`${THEME.label} mb-2`}>In Progress</p>
+                  <p className="text-3xl font-black text-white">
+                    {projectTasks.filter(t => !t.isCompleted).length}
+                  </p>
+                </div>
+                <div className={`${THEME.innerCard}`}>
+                  <p className={`${THEME.label} mb-2`}>Progress</p>
+                  <p className="text-3xl font-black text-pilot-orange">
+                    {projectTasks.length > 0
+                      ? Math.round((projectTasks.filter(t => t.isCompleted).length / projectTasks.length) * 100)
+                      : 0}%
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <div className="h-3 bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-pilot-orange to-pilot-orange/60 transition-all duration-500 rounded-full"
+                    style={{
+                      width: `${projectTasks.length > 0
+                        ? (projectTasks.filter(t => t.isCompleted).length / projectTasks.length) * 100
+                        : 0}%`
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className={THEME.card}>
+            <h4 className="text-sm font-black text-white/40 uppercase tracking-widest mb-6">
+              {activeProject ? `MISSIONS IN ${activeProject.name}` : "SELECT A SECTOR TO VIEW MISSIONS"}
+            </h4>
+            <div className="space-y-3">
+              {projectTasks.length === 0 ? (
+                <div className="text-center py-20 bg-white/[0.01] rounded-xl border border-dashed border-white/10">
+                  <Target size={40} className="mx-auto mb-4 text-white/5" />
+                  <p className="text-sm font-black text-white/20 uppercase tracking-widest">Sector Scan Clean • No Missions</p>
+                </div>
+              ) : (
+                projectTasks.map(task => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    projects={state.projects}
+                    toggleTask={toggleTask}
+                    updateTask={updateTask}
+                    onFocus={() => {}}
+                    isFocusing={false}
+                    onDuplicate={duplicateTask}
+                    onDelete={deleteTask}
+                  />
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1427,6 +1586,7 @@ export default function App() {
   const [focusMode, setFocusMode] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const { toasts, removeToast, success, error, info } = useToast();
   const [state, setState] = useState<AppState>({
     tasks: [],
@@ -1466,6 +1626,21 @@ export default function App() {
     // Show loading screen for at least 2 seconds
     setTimeout(checkAuth, 2000);
   }, []);
+
+  // Load theme from localStorage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  // Save theme to localStorage
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+    // Update document root class for theme
+    document.documentElement.classList.toggle('light', theme === 'light');
+  }, [theme]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1692,6 +1867,13 @@ export default function App() {
   const duplicateTask = async (id: string) => {
     const task = state.tasks.find(t => t.id === id);
     if (task && currentUser) {
+      // Duplicate subtasks with new IDs
+      const duplicatedSubtasks = task.subtasks?.map(st => ({
+        id: Math.random().toString(36).substr(2, 9),
+        title: st.title,
+        isCompleted: false
+      }));
+
       const newTaskData = {
         title: `${task.title} (Copy)`,
         description: task.description,
@@ -1702,7 +1884,8 @@ export default function App() {
         dueDate: task.dueDate,
         createdAt: new Date().toISOString(),
         isRecurring: task.isRecurring,
-        recurringInterval: task.recurringInterval
+        recurringInterval: task.recurringInterval,
+        subtasks: duplicatedSubtasks
       };
 
       // Add to Firestore
@@ -1718,7 +1901,8 @@ export default function App() {
         dueDate: newTaskData.dueDate,
         createdAt: newTaskData.createdAt,
         isRecurring: newTaskData.isRecurring,
-        recurringInterval: newTaskData.recurringInterval
+        recurringInterval: newTaskData.recurringInterval,
+        subtasks: newTaskData.subtasks
       };
 
       // Add to history for undo
@@ -1786,6 +1970,12 @@ export default function App() {
     success('Data exported successfully!');
   };
 
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    success(`${newTheme === 'light' ? 'Light' : 'Dark'} mode enabled`);
+  };
+
   if (loading) {
     return <LoadingScreen />;
   }
@@ -1801,10 +1991,10 @@ export default function App() {
         <UserProfile user={currentUser} onClose={() => setShowProfile(false)} onLogout={handleLogout} onExport={exportDataAsJSON} />
       )}
       <KeyboardShortcuts isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
-      <div className={`min-h-screen bg-deepnavy flex text-white font-sans selection:bg-pilot-orange/30 ${focusMode ? 'focus-mode' : ''}`}>
+      <div className={`min-h-screen flex font-sans selection:bg-pilot-orange/30 ${focusMode ? 'focus-mode' : ''} ${theme === 'dark' ? 'bg-deepnavy text-white' : 'bg-gray-50 text-gray-900'}`}>
         {!focusMode && <Sidebar isCollapsed={isSidebarCollapsed} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)} />}
         <main className={`flex-1 transition-all duration-300 ease-in-out p-6 lg:p-12 ${!focusMode ? (isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72') : ''} flex flex-col h-screen overflow-hidden relative`}>
-          {!focusMode && <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} onShowProfile={() => setShowProfile(true)} user={currentUser} focusMode={focusMode} toggleFocusMode={() => setFocusMode(!focusMode)} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />}
+          {!focusMode && <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} onShowProfile={() => setShowProfile(true)} user={currentUser} focusMode={focusMode} toggleFocusMode={() => setFocusMode(!focusMode)} searchQuery={searchQuery} setSearchQuery={setSearchQuery} theme={theme} toggleTheme={toggleTheme} />}
           {focusMode && (
             <button
               onClick={() => setFocusMode(false)}
@@ -1817,7 +2007,7 @@ export default function App() {
               </span>
             </button>
           )}
-          <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-12">
+          <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-20 lg:pb-12">
             <Routes>
               <Route path="/" element={<WorkdayPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} setEnergy={setEnergy} duplicateTask={duplicateTask} deleteTask={deleteTask} searchQuery={searchQuery} />} />
               <Route path="/planner" element={<WeeklyPlannerPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} />} />
@@ -1830,6 +2020,7 @@ export default function App() {
             </Routes>
           </div>
         </main>
+        {!focusMode && <MobileBottomNav />}
       </div>
       <style>{`
         @keyframes bounce-short { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
@@ -1842,6 +2033,81 @@ export default function App() {
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(243,115,36,0.3); }
+
+        /* Light mode overrides */
+        html.light {
+          background: #f9fafb;
+        }
+
+        html.light .bg-prussianblue {
+          background: white !important;
+          border-color: rgba(0,0,0,0.1) !important;
+        }
+
+        html.light .bg-deepnavy {
+          background: #f3f4f6 !important;
+        }
+
+        html.light .text-white {
+          color: #111827 !important;
+        }
+
+        html.light .text-white\\/70 {
+          color: #4b5563 !important;
+        }
+
+        html.light .text-white\\/40 {
+          color: #9ca3af !important;
+        }
+
+        html.light .text-white\\/30 {
+          color: #d1d5db !important;
+        }
+
+        html.light .text-white\\/20 {
+          color: #e5e7eb !important;
+        }
+
+        html.light .border-white\\/10 {
+          border-color: rgba(0,0,0,0.1) !important;
+        }
+
+        html.light .border-white\\/5 {
+          border-color: rgba(0,0,0,0.05) !important;
+        }
+
+        html.light .bg-white\\/5 {
+          background: rgba(0,0,0,0.03) !important;
+        }
+
+        html.light .bg-white\\/10 {
+          background: rgba(0,0,0,0.05) !important;
+        }
+
+        html.light .bg-white\\/\\[0.03\\] {
+          background: rgba(0,0,0,0.02) !important;
+        }
+
+        html.light select option {
+          background: white;
+          color: #111827;
+        }
+
+        html.light ::-webkit-scrollbar-thumb {
+          background: rgba(0,0,0,0.1);
+        }
+
+        html.light ::-webkit-scrollbar-thumb:hover {
+          background: rgba(243,115,36,0.4);
+        }
+
+        html.light .hover\\:bg-white\\/5:hover {
+          background: rgba(0,0,0,0.05) !important;
+        }
+
+        html.light .hover\\:text-white:hover {
+          color: #111827 !important;
+        }
       `}</style>
     </HashRouter>
   );
