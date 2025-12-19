@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { 
-  Home, 
-  BarChart2, 
-  Layers, 
-  Calendar, 
-  Zap, 
-  CheckCircle2, 
-  Plus, 
+import {
+  Home,
+  BarChart2,
+  Layers,
+  Calendar,
+  Zap,
+  CheckCircle2,
+  Plus,
   TrendingUp,
   Brain,
   X,
@@ -44,14 +44,25 @@ import {
   PieChart as PieChartIcon,
   Activity,
   ChevronRightSquare,
-  MoreHorizontal
+  MoreHorizontal,
+  Printer,
+  Sun,
+  Moon,
+  Music
 } from 'lucide-react';
-import { EnergyLevel, Task, Project, DailyReport, AppState, CalendarEvent, RecurringTask } from './types';
+import { EnergyLevel, Task, Project, DailyReport, AppState, CalendarEvent, RecurringTask, Subtask } from './types';
 import { ENERGY_LEVELS, CATEGORIES } from './constants';
 import { generateDailyReport, getWeeklyInsights } from './services/geminiService';
+import notificationService from './services/notificationService';
+import { firestoreService } from './services/firestoreService';
 import PomodoroTimer from './components/PomodoroTimer';
 import LoginPage from './components/LoginPage';
 import LoadingScreen from './components/LoadingScreen';
+import UserProfile from './components/UserProfile';
+import { ToastContainer, useToast } from './components/Toast';
+import KeyboardShortcuts from './components/KeyboardShortcuts';
+import MobileBottomNav from './components/MobileBottomNav';
+import MusicPlayer from './components/MusicPlayer';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
@@ -74,6 +85,8 @@ interface TaskItemProps {
   updateTask: (id: string, updates: Partial<Task>) => void;
   onFocus: (task: Task) => void;
   isFocusing: boolean;
+  onDuplicate: (id: string) => void;
+  onDelete: (id: string) => void;
 }
 
 interface WorkdayPageProps {
@@ -82,11 +95,14 @@ interface WorkdayPageProps {
   toggleTask: (id: string) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   setEnergy: (level: EnergyLevel) => void;
+  duplicateTask: (id: string) => void;
+  deleteTask: (id: string) => void;
+  searchQuery?: string;
 }
 
 // --- Sidebar Component ---
 
-const Sidebar = ({ isCollapsed, isOpen, setIsOpen }: { isCollapsed: boolean; isOpen: boolean; setIsOpen: (v: boolean) => void }) => {
+const Sidebar = ({ isCollapsed, isOpen, setIsOpen, toggleCollapse }: { isCollapsed: boolean; isOpen: boolean; setIsOpen: (v: boolean) => void; toggleCollapse: () => void }) => {
   const location = useLocation();
   
   const sections = [
@@ -126,7 +142,7 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen }: { isCollapsed: boolean; isO
             {!isCollapsed && <h1 className="text-xl font-black tracking-tighter text-white whitespace-nowrap">PACE PILOT</h1>}
           </div>
           
-          <div className="space-y-10">
+          <div className="space-y-10 flex-1">
             {sections.map((section, idx) => (
               <div key={idx} className="space-y-4">
                 {!isCollapsed && <p className={THEME.label}>{section.title}</p>}
@@ -150,6 +166,20 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen }: { isCollapsed: boolean; isO
               </div>
             ))}
           </div>
+
+          {/* Collapse Toggle Button */}
+          <button
+            onClick={toggleCollapse}
+            className="hidden lg:flex mt-auto items-center justify-center gap-2 p-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 hover:text-white transition-all group"
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? <ChevronRight size={18} /> : (
+              <>
+                <ChevronLeft size={18} />
+                <span className="text-xs font-bold uppercase tracking-wider">Collapse</span>
+              </>
+            )}
+          </button>
         </div>
       </aside>
     </>
@@ -158,9 +188,9 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen }: { isCollapsed: boolean; isO
 
 // --- Header Component ---
 
-const TopBar = ({ toggleSidebar, onLogout }: { toggleSidebar: () => void; onLogout: () => void }) => {
+const TopBar = ({ toggleSidebar, onLogout, onShowProfile, user, focusMode, toggleFocusMode, searchQuery, setSearchQuery, theme, toggleTheme, onShowMusicPlayer }: { toggleSidebar: () => void; onLogout: () => void; onShowProfile: () => void; user: any; focusMode: boolean; toggleFocusMode: () => void; searchQuery: string; setSearchQuery: (q: string) => void; theme: 'light' | 'dark'; toggleTheme: () => void; onShowMusicPlayer: () => void }) => {
   const [time, setTime] = useState(new Date());
-  const [showLogoutMenu, setShowLogoutMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -193,27 +223,77 @@ const TopBar = ({ toggleSidebar, onLogout }: { toggleSidebar: () => void; onLogo
           <input
             type="text"
             placeholder="QUICK SEARCH..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className={`${THEME.input} w-full pl-11 py-2.5 font-bold uppercase tracking-widest`}
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
-        <button className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all">
+        <button className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all relative">
           <Bell size={20} />
+          <span className="absolute top-1 right-1 w-2 h-2 bg-pilot-orange rounded-full animate-pulse"></span>
+        </button>
+        <button
+          onClick={toggleTheme}
+          className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all"
+          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        >
+          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
+        <button
+          onClick={onShowMusicPlayer}
+          className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-pilot-orange hover:bg-white/5 transition-all"
+          title="Music Player"
+        >
+          <Music size={20} />
+        </button>
+        <button
+          onClick={toggleFocusMode}
+          className={`border p-2.5 rounded-lg transition-all ${
+            focusMode
+              ? 'bg-pilot-orange border-pilot-orange text-white'
+              : 'bg-prussianblue border-white/10 text-white/40 hover:text-white hover:bg-white/5'
+          }`}
+          title={focusMode ? 'Exit Focus Mode (F)' : 'Enter Focus Mode (F)'}
+        >
+          <Target size={20} />
         </button>
         <div className="relative">
           <button
-            onClick={() => setShowLogoutMenu(!showLogoutMenu)}
-            className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all"
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2"
           >
-            <Settings size={20} />
+            <Users size={20} />
           </button>
-          {showLogoutMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-prussianblue border border-white/10 rounded-lg shadow-xl z-50">
+          {showUserMenu && (
+            <div className="absolute right-0 mt-2 w-56 bg-prussianblue border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden animate-in slide-in-from-top-2 duration-200">
+              <div className="p-3 border-b border-white/5 bg-white/5">
+                <p className="text-xs font-bold text-white/40 uppercase tracking-wider mb-1">Signed in as</p>
+                <p className="text-sm font-bold text-white truncate">{user?.email || 'User'}</p>
+              </div>
               <button
                 onClick={() => {
-                  setShowLogoutMenu(false);
-                  onLogout();
+                  setShowUserMenu(false);
+                  onShowProfile();
                 }}
                 className="w-full text-left px-4 py-3 text-sm font-bold text-white/70 hover:text-pilot-orange hover:bg-white/5 transition-all flex items-center gap-2"
+              >
+                <Users size={14} />
+                <span className="uppercase tracking-wider">View Profile</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowUserMenu(false);
+                  onLogout();
+                }}
+                className="w-full text-left px-4 py-3 text-sm font-bold text-white/70 hover:text-red-400 hover:bg-white/5 transition-all flex items-center gap-2 border-t border-white/5"
               >
                 <ArrowLeft size={14} />
                 <span className="uppercase tracking-wider">Sign Out</span>
@@ -246,9 +326,10 @@ const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose:
 
 // --- Task Item Component ---
 
-const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing }: TaskItemProps) => {
+const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing, onDuplicate, onDelete }: TaskItemProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
   const handleToggleComplete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -257,6 +338,35 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing 
       toggleTask(task.id);
       setIsCompleting(false);
     }, 300);
+  };
+
+  const handleAddSubtask = (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (newSubtaskTitle.trim()) {
+      const newSubtask: Subtask = {
+        id: Math.random().toString(36).substr(2, 9),
+        title: newSubtaskTitle.trim(),
+        isCompleted: false
+      };
+      const updatedSubtasks = [...(task.subtasks || []), newSubtask];
+      updateTask(task.id, { subtasks: updatedSubtasks });
+      setNewSubtaskTitle('');
+    }
+  };
+
+  const handleToggleSubtask = (subtaskId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updatedSubtasks = (task.subtasks || []).map(st =>
+      st.id === subtaskId ? { ...st, isCompleted: !st.isCompleted } : st
+    );
+    updateTask(task.id, { subtasks: updatedSubtasks });
+  };
+
+  const handleDeleteSubtask = (subtaskId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updatedSubtasks = (task.subtasks || []).filter(st => st.id !== subtaskId);
+    updateTask(task.id, { subtasks: updatedSubtasks });
   };
 
   const currentProject = projects.find(p => p.id === task.projectId);
@@ -307,19 +417,20 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing 
       </div>
 
       {isExpanded && (
-        <div className="mt-6 pt-6 border-t border-white/5 grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top-2 duration-300" onClick={(e) => e.stopPropagation()}>
-          <div className="space-y-4">
-            <div>
-              <label className={THEME.label}>Context & Notes</label>
-              <textarea 
-                value={task.description || ''}
-                onChange={(e) => updateTask(task.id, { description: e.target.value })}
-                placeholder="NO DESCRIPTION..."
-                className="w-full bg-deepnavy border border-white/5 rounded-lg p-3 text-xs text-white/80 focus:outline-none h-24 resize-none placeholder:opacity-10"
-              />
+        <div className="mt-6 pt-6 border-t border-white/5 space-y-6 animate-in slide-in-from-top-2 duration-300" onClick={(e) => e.stopPropagation()}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className={THEME.label}>Context & Notes</label>
+                <textarea
+                  value={task.description || ''}
+                  onChange={(e) => updateTask(task.id, { description: e.target.value })}
+                  placeholder="NO DESCRIPTION..."
+                  className="w-full bg-deepnavy border border-white/5 rounded-lg p-3 text-xs text-white/80 focus:outline-none h-24 resize-none placeholder:opacity-10"
+                />
+              </div>
             </div>
-          </div>
-          <div className="space-y-4">
+            <div className="space-y-4">
              <div>
               <label className={THEME.label}>Assignment</label>
               <div className="px-4 py-2.5 bg-deepnavy border border-white/5 rounded-lg text-xs font-bold text-white/60">
@@ -333,6 +444,88 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing 
               </div>
             </div>
           </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <label className={THEME.label}>Subtasks / Checklist</label>
+              <span className="text-xs font-bold text-white/20">
+                {task.subtasks?.filter(st => st.isCompleted).length || 0} / {task.subtasks?.length || 0}
+              </span>
+            </div>
+
+            <div className="space-y-2 mb-3">
+              {task.subtasks && task.subtasks.length > 0 ? (
+                task.subtasks.map(subtask => (
+                  <div key={subtask.id} className="flex items-center gap-3 p-3 bg-deepnavy border border-white/5 rounded-lg group hover:bg-white/[0.02] transition-all">
+                    <button
+                      onClick={(e) => handleToggleSubtask(subtask.id, e)}
+                      className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
+                        subtask.isCompleted
+                          ? 'bg-pilot-orange border-pilot-orange'
+                          : 'border-white/10 group-hover:border-pilot-orange/50'
+                      }`}
+                    >
+                      {subtask.isCompleted && <Check size={10} strokeWidth={4} className="text-white" />}
+                    </button>
+                    <span className={`flex-1 text-xs font-bold transition-all ${
+                      subtask.isCompleted ? 'line-through text-white/20' : 'text-white/60'
+                    }`}>
+                      {subtask.title}
+                    </span>
+                    <button
+                      onClick={(e) => handleDeleteSubtask(subtask.id, e)}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/10 rounded transition-all"
+                    >
+                      <X size={12} className="text-red-400" />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-white/20 text-center py-4 italic">No subtasks yet</p>
+              )}
+            </div>
+
+            <form onSubmit={handleAddSubtask} className="flex gap-2">
+              <input
+                type="text"
+                value={newSubtaskTitle}
+                onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                placeholder="ADD SUBTASK..."
+                className="flex-1 bg-deepnavy border border-white/5 rounded-lg px-3 py-2 text-xs text-white/80 focus:outline-none focus:border-pilot-orange/50 transition-all placeholder:opacity-10"
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 bg-pilot-orange/10 hover:bg-pilot-orange/20 border border-pilot-orange/20 rounded-lg text-xs font-bold text-pilot-orange transition-all flex items-center gap-2"
+              >
+                <Plus size={14} />
+                ADD
+              </button>
+            </form>
+          </div>
+
+          <div className="pt-4 border-t border-white/5 flex items-center gap-3">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDuplicate(task.id);
+              }}
+              className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-bold text-white/70 hover:text-pilot-orange transition-all flex items-center justify-center gap-2"
+            >
+              <PlusCircle size={14} />
+              DUPLICATE
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(task.id);
+              }}
+              className="flex-1 px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-xs font-bold text-red-400 hover:text-red-300 transition-all flex items-center justify-center gap-2"
+            >
+              <X size={14} />
+              DELETE
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -341,7 +534,7 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing 
 
 // --- Workday Page ---
 
-const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy }: WorkdayPageProps) => {
+const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, duplicateTask, deleteTask, searchQuery = '' }: WorkdayPageProps) => {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [isTimerActive, setIsTimerActive] = useState(false);
   const activeTask = useMemo(() => state.tasks.find(t => t.id === activeTaskId) || null, [state.tasks, activeTaskId]);
@@ -353,11 +546,24 @@ const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy }: Wor
 
   const filteredTasks = useMemo(() => {
     let result = state.tasks.filter(t => !t.isCompleted);
+
+    // Filter by energy
     if (energyFilter !== 'All') {
       result = result.filter(t => t.energyRequired === energyFilter);
     }
+
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(t =>
+        t.title.toLowerCase().includes(query) ||
+        t.description?.toLowerCase().includes(query) ||
+        state.projects.find(p => p.id === t.projectId)?.name.toLowerCase().includes(query)
+      );
+    }
+
     return result;
-  }, [state.tasks, energyFilter]);
+  }, [state.tasks, state.projects, energyFilter, searchQuery]);
 
   const handleEndDay = async () => {
     setIsGeneratingReport(true);
@@ -482,14 +688,16 @@ const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy }: Wor
               </div>
             ) : (
               filteredTasks.map((task) => (
-                <TaskItem 
-                  key={task.id} 
-                  task={task} 
+                <TaskItem
+                  key={task.id}
+                  task={task}
                   projects={state.projects}
-                  toggleTask={toggleTask} 
-                  updateTask={updateTask} 
-                  onFocus={(t) => setActiveTaskId(t.id)} 
-                  isFocusing={activeTaskId === task.id} 
+                  toggleTask={toggleTask}
+                  updateTask={updateTask}
+                  onFocus={(t) => setActiveTaskId(t.id)}
+                  isFocusing={activeTaskId === task.id}
+                  onDuplicate={duplicateTask}
+                  onDelete={deleteTask}
                 />
               ))
             )}
@@ -840,11 +1048,28 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
   };
 
   return (
-    <div className="animate-in fade-in duration-500 pb-12 space-y-12 relative">
+    <div className="animate-in fade-in duration-500 pb-12 space-y-12 relative print-container">
+      <button
+        onClick={() => window.print()}
+        className="no-print fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-pilot-orange hover:bg-pilot-orange/90 text-white font-bold rounded-lg shadow-2xl transition-all hover:scale-105 active:scale-95"
+      >
+        <Printer size={20} />
+        <span className="hidden md:inline">Print Report</span>
+      </button>
+
       <section className={THEME.card}>
-        <div className="flex items-center gap-3 mb-10">
-           <TrendingUp size={24} className="text-pilot-orange" />
-           <h3 className="text-xl font-black text-white uppercase tracking-widest">PRODUCTIVITY OVERVIEW</h3>
+        <div className="flex items-center justify-between mb-10">
+          <div className="flex items-center gap-3">
+            <TrendingUp size={24} className="text-pilot-orange" />
+            <h3 className="text-xl font-black text-white uppercase tracking-widest">PRODUCTIVITY OVERVIEW</h3>
+          </div>
+          <button
+            onClick={() => window.print()}
+            className="no-print flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white/70 hover:text-white transition-all"
+          >
+            <Printer size={16} />
+            <span className="text-xs font-bold uppercase tracking-wider">Print</span>
+          </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
@@ -1110,12 +1335,14 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
 };
 
 // --- Projects Page component ---
-const ProjectsPage = ({ state, setState, toggleTask, updateTask, addProject }: {
+const ProjectsPage = ({ state, setState, toggleTask, updateTask, addProject, duplicateTask, deleteTask }: {
   state: AppState;
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   toggleTask: (id: string) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   addProject: (name: string) => void;
+  duplicateTask: (id: string) => void;
+  deleteTask: (id: string) => void;
 }) => {
   const { projectId } = useParams<{ projectId?: string }>();
   const [isAddingProject, setIsAddingProject] = useState(false);
@@ -1171,31 +1398,91 @@ const ProjectsPage = ({ state, setState, toggleTask, updateTask, addProject }: {
         </div>
 
         <div className="lg:col-span-3">
-           <div className={THEME.card}>
-              <h4 className="text-sm font-black text-white/40 uppercase tracking-widest mb-6">
-                {activeProject ? `MISSIONS IN ${activeProject.name}` : "SELECT A SECTOR TO VIEW MISSIONS"}
-              </h4>
-              <div className="space-y-3">
-                {projectTasks.length === 0 ? (
-                  <div className="text-center py-20 bg-white/[0.01] rounded-xl border border-dashed border-white/10">
-                    <Target size={40} className="mx-auto mb-4 text-white/5" />
-                    <p className="text-sm font-black text-white/20 uppercase tracking-widest">Sector Scan Clean • No Missions</p>
-                  </div>
-                ) : (
-                  projectTasks.map(task => (
-                    <TaskItem 
-                      key={task.id} 
-                      task={task} 
-                      projects={state.projects}
-                      toggleTask={toggleTask} 
-                      updateTask={updateTask}
-                      onFocus={() => {}} 
-                      isFocusing={false}
-                    />
-                  ))
-                )}
+          {activeProject && (
+            <div className={`${THEME.card} mb-6`}>
+              <div className="flex items-start justify-between mb-6">
+                <div>
+                  <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2">
+                    {activeProject.name}
+                  </h3>
+                  <p className={`${THEME.label}`}>Project Overview</p>
+                </div>
+                <div className="flex gap-2">
+                  <button className="p-2 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-all">
+                    <Settings size={16} className="text-white/40" />
+                  </button>
+                </div>
               </div>
-           </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className={`${THEME.innerCard}`}>
+                  <p className={`${THEME.label} mb-2`}>Total Tasks</p>
+                  <p className="text-3xl font-black text-white">{projectTasks.length}</p>
+                </div>
+                <div className={`${THEME.innerCard}`}>
+                  <p className={`${THEME.label} mb-2`}>Completed</p>
+                  <p className="text-3xl font-black text-pilot-orange">
+                    {projectTasks.filter(t => t.isCompleted).length}
+                  </p>
+                </div>
+                <div className={`${THEME.innerCard}`}>
+                  <p className={`${THEME.label} mb-2`}>In Progress</p>
+                  <p className="text-3xl font-black text-white">
+                    {projectTasks.filter(t => !t.isCompleted).length}
+                  </p>
+                </div>
+                <div className={`${THEME.innerCard}`}>
+                  <p className={`${THEME.label} mb-2`}>Progress</p>
+                  <p className="text-3xl font-black text-pilot-orange">
+                    {projectTasks.length > 0
+                      ? Math.round((projectTasks.filter(t => t.isCompleted).length / projectTasks.length) * 100)
+                      : 0}%
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <div className="h-3 bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-pilot-orange to-pilot-orange/60 transition-all duration-500 rounded-full"
+                    style={{
+                      width: `${projectTasks.length > 0
+                        ? (projectTasks.filter(t => t.isCompleted).length / projectTasks.length) * 100
+                        : 0}%`
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className={THEME.card}>
+            <h4 className="text-sm font-black text-white/40 uppercase tracking-widest mb-6">
+              {activeProject ? `MISSIONS IN ${activeProject.name}` : "SELECT A SECTOR TO VIEW MISSIONS"}
+            </h4>
+            <div className="space-y-3">
+              {projectTasks.length === 0 ? (
+                <div className="text-center py-20 bg-white/[0.01] rounded-xl border border-dashed border-white/10">
+                  <Target size={40} className="mx-auto mb-4 text-white/5" />
+                  <p className="text-sm font-black text-white/20 uppercase tracking-widest">Sector Scan Clean • No Missions</p>
+                </div>
+              ) : (
+                projectTasks.map(task => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    projects={state.projects}
+                    toggleTask={toggleTask}
+                    updateTask={updateTask}
+                    onFocus={() => {}}
+                    isFocusing={false}
+                    onDuplicate={duplicateTask}
+                    onDelete={deleteTask}
+                  />
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1300,8 +1587,17 @@ const CalendarPage = ({ events, onAdd }: { events: CalendarEvent[], onAdd: (ev: 
 
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [showProfile, setShowProfile] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [showMusicPlayer, setShowMusicPlayer] = useState(false);
+  const { toasts, removeToast, success, error, info } = useToast();
   const [state, setState] = useState<AppState>({
     tasks: [],
     projects: [],
@@ -1312,12 +1608,27 @@ export default function App() {
     currentStreak: 0,
   });
 
+  // Undo/Redo history stack
+  type HistoryAction = {
+    type: 'task_delete' | 'task_update' | 'task_create' | 'task_toggle';
+    data: any;
+    timestamp: number;
+  };
+  const [history, setHistory] = useState<HistoryAction[]>([]);
+  const [redoStack, setRedoStack] = useState<HistoryAction[]>([]);
+
   useEffect(() => {
     const checkAuth = () => {
       // Check if user is already authenticated (e.g., from localStorage)
       const savedAuth = localStorage.getItem('isAuthenticated');
       if (savedAuth === 'true') {
         setIsAuthenticated(true);
+        // Request notification permission after login
+        setTimeout(() => {
+          if (notificationService.isSupported() && !notificationService.hasPermission()) {
+            notificationService.requestPermission();
+          }
+        }, 3000); // Wait 3 seconds after app loads
       }
       setLoading(false);
     };
@@ -1326,45 +1637,307 @@ export default function App() {
     setTimeout(checkAuth, 2000);
   }, []);
 
+  // Load theme from localStorage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  // Save theme to localStorage
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+    // Update document root class for theme
+    document.documentElement.classList.toggle('light', theme === 'light');
+  }, [theme]);
+
   useEffect(() => {
     const fetchData = async () => {
-      if (!isAuthenticated) return;
+      if (!isAuthenticated || !currentUser) return;
 
       try {
-        const response = await fetch('./Mockdata.json');
-        const data = await response.json();
+        info('Loading your data...');
+
+        // Load all data from Firestore
+        const [tasks, projects, calendarEvents, recurringTasks, dailyReports] = await Promise.all([
+          firestoreService.getTasks(currentUser.uid),
+          firestoreService.getProjects(currentUser.uid),
+          firestoreService.getCalendarEvents(currentUser.uid),
+          firestoreService.getRecurringTasks(currentUser.uid),
+          firestoreService.getDailyReports(currentUser.uid),
+        ]);
+
         setState(prev => ({
           ...prev,
-          tasks: data.tasks,
-          projects: data.projects,
-          calendarEvents: data.calendarEvents,
-          recurringTasks: data.recurringTasks,
-          dailyReports: data.dailyReports,
+          tasks: tasks.length > 0 ? tasks : prev.tasks,
+          projects: projects.length > 0 ? projects : prev.projects,
+          calendarEvents: calendarEvents.length > 0 ? calendarEvents : prev.calendarEvents,
+          recurringTasks: recurringTasks.length > 0 ? recurringTasks : prev.recurringTasks,
+          dailyReports: dailyReports.length > 0 ? dailyReports : prev.dailyReports,
           currentStreak: 12,
         }));
+
+        success('Data loaded successfully!');
       } catch (error) {
-        console.error("Failed to fetch mock data:", error);
+        console.error("Failed to fetch data from Firestore:", error);
+        error('Failed to load data. Using offline mode.');
+
+        // Fallback to mock data if Firestore fails
+        try {
+          const response = await fetch('./Mockdata.json');
+          const data = await response.json();
+          setState(prev => ({
+            ...prev,
+            tasks: data.tasks,
+            projects: data.projects,
+            calendarEvents: data.calendarEvents,
+            recurringTasks: data.recurringTasks,
+            dailyReports: data.dailyReports,
+            currentStreak: 12,
+          }));
+        } catch (fallbackError) {
+          console.error("Failed to fetch mock data:", fallbackError);
+        }
       }
     };
     fetchData();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, currentUser]);
 
-  const handleLogin = () => {
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      // Cmd/Ctrl+Z for Undo
+      if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+
+      // Cmd/Ctrl+Shift+Z for Redo
+      if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+        e.preventDefault();
+        handleRedo();
+      }
+
+      // ? key for Keyboard Shortcuts overlay
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setShowShortcuts(true);
+      }
+
+      // Esc key to close overlays
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (showShortcuts) setShowShortcuts(false);
+        if (showProfile) setShowProfile(false);
+      }
+
+      // F key for Focus Mode
+      if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey && !showShortcuts && !showProfile) {
+        e.preventDefault();
+        setFocusMode(prev => !prev);
+        info(focusMode ? 'Focus mode disabled' : 'Focus mode enabled');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [focusMode, info, showShortcuts, showProfile, history, redoStack]);
+
+  const handleUndo = () => {
+    if (history.length === 0) {
+      info('Nothing to undo');
+      return;
+    }
+
+    const lastAction = history[history.length - 1];
+    const newHistory = history.slice(0, -1);
+    setHistory(newHistory);
+    setRedoStack([...redoStack, lastAction]);
+
+    // Reverse the action
+    switch (lastAction.type) {
+      case 'task_delete':
+        // Restore deleted task
+        setState(prev => ({ ...prev, tasks: [...prev.tasks, lastAction.data] }));
+        success('Restored deleted task');
+        break;
+      case 'task_create':
+        // Remove created task
+        setState(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== lastAction.data.id) }));
+        success('Undone task creation');
+        break;
+      case 'task_toggle':
+        // Toggle back
+        setState(prev => ({
+          ...prev,
+          tasks: prev.tasks.map(t => t.id === lastAction.data.id ? lastAction.data : t)
+        }));
+        success('Undone task toggle');
+        break;
+      case 'task_update':
+        // Restore previous state
+        setState(prev => ({
+          ...prev,
+          tasks: prev.tasks.map(t => t.id === lastAction.data.id ? lastAction.data : t)
+        }));
+        success('Undone task update');
+        break;
+    }
+  };
+
+  const handleRedo = () => {
+    if (redoStack.length === 0) {
+      info('Nothing to redo');
+      return;
+    }
+
+    const lastRedo = redoStack[redoStack.length - 1];
+    const newRedoStack = redoStack.slice(0, -1);
+    setRedoStack(newRedoStack);
+    setHistory([...history, lastRedo]);
+
+    // Redo the action
+    switch (lastRedo.type) {
+      case 'task_delete':
+        setState(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== lastRedo.data.id) }));
+        success('Redone task deletion');
+        break;
+      case 'task_create':
+        setState(prev => ({ ...prev, tasks: [...prev.tasks, lastRedo.data] }));
+        success('Redone task creation');
+        break;
+      case 'task_toggle':
+        setState(prev => ({
+          ...prev,
+          tasks: prev.tasks.map(t => t.id === lastRedo.data.id ? { ...t, isCompleted: !t.isCompleted } : t)
+        }));
+        success('Redone task toggle');
+        break;
+      case 'task_update':
+        setState(prev => ({
+          ...prev,
+          tasks: prev.tasks.map(t => t.id === lastRedo.data.id ? lastRedo.data : t)
+        }));
+        success('Redone task update');
+        break;
+    }
+  };
+
+  const handleLogin = (user?: any) => {
     setIsAuthenticated(true);
+    setCurrentUser(user || { email: 'demo@pacepilot.app', uid: 'demo-user', metadata: { creationTime: new Date().toISOString(), lastSignInTime: new Date().toISOString() } });
     localStorage.setItem('isAuthenticated', 'true');
+    success('Welcome back to Pace Pilot!');
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
+    setCurrentUser(null);
     localStorage.removeItem('isAuthenticated');
+    info('Signed out successfully');
   };
 
-  const toggleTask = (id: string) => {
+  const toggleTask = async (id: string) => {
+    const task = state.tasks.find(t => t.id === id);
+    if (task) {
+      // Add to history before changing
+      setHistory(prev => [...prev, { type: 'task_toggle', data: task, timestamp: Date.now() }]);
+      setRedoStack([]); // Clear redo stack on new action
+
+      // Update in Firestore
+      if (currentUser) {
+        await firestoreService.updateTask(id, { isCompleted: !task.isCompleted });
+      }
+    }
     setState(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === id ? { ...t, isCompleted: !t.isCompleted } : t) }));
+    success('Task updated!');
   };
 
-  const updateTask = (id: string, updates: Partial<Task>) => {
+  const updateTask = async (id: string, updates: Partial<Task>) => {
+    const task = state.tasks.find(t => t.id === id);
+    if (task) {
+      // Add to history before changing
+      setHistory(prev => [...prev, { type: 'task_update', data: task, timestamp: Date.now() }]);
+      setRedoStack([]); // Clear redo stack on new action
+
+      // Update in Firestore
+      if (currentUser) {
+        await firestoreService.updateTask(id, updates);
+      }
+    }
     setState(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === id ? { ...t, ...updates } : t) }));
+  };
+
+  const duplicateTask = async (id: string) => {
+    const task = state.tasks.find(t => t.id === id);
+    if (task && currentUser) {
+      // Duplicate subtasks with new IDs
+      const duplicatedSubtasks = task.subtasks?.map(st => ({
+        id: Math.random().toString(36).substr(2, 9),
+        title: st.title,
+        isCompleted: false
+      }));
+
+      const newTaskData = {
+        title: `${task.title} (Copy)`,
+        description: task.description,
+        category: task.category,
+        projectId: task.projectId,
+        energyRequired: task.energyRequired,
+        isCompleted: false,
+        dueDate: task.dueDate,
+        createdAt: new Date().toISOString(),
+        isRecurring: task.isRecurring,
+        recurringInterval: task.recurringInterval,
+        subtasks: duplicatedSubtasks
+      };
+
+      // Add to Firestore
+      const newTaskId = await firestoreService.addTask(currentUser.uid, newTaskData);
+      const newTask: Task = {
+        id: String(newTaskId),
+        title: newTaskData.title,
+        description: newTaskData.description,
+        category: newTaskData.category,
+        projectId: newTaskData.projectId,
+        energyRequired: newTaskData.energyRequired,
+        isCompleted: newTaskData.isCompleted,
+        dueDate: newTaskData.dueDate,
+        createdAt: newTaskData.createdAt,
+        isRecurring: newTaskData.isRecurring,
+        recurringInterval: newTaskData.recurringInterval,
+        subtasks: newTaskData.subtasks
+      };
+
+      // Add to history for undo
+      setHistory(prev => [...prev, { type: 'task_create', data: newTask, timestamp: Date.now() }]);
+      setRedoStack([]);
+      setState(prev => ({ ...prev, tasks: [...prev.tasks, newTask] }));
+      success('Task duplicated!');
+    }
+  };
+
+  const deleteTask = async (id: string) => {
+    const task = state.tasks.find(t => t.id === id);
+    if (task) {
+      // Add to history before deleting
+      setHistory(prev => [...prev, { type: 'task_delete', data: task, timestamp: Date.now() }]);
+      setRedoStack([]);
+
+      // Delete from Firestore
+      if (currentUser) {
+        await firestoreService.deleteTask(id);
+      }
+
+      setState(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== id) }));
+      success('Task deleted!');
+    }
   };
 
   const toggleRecurring = (id: string) => {
@@ -1384,6 +1957,35 @@ export default function App() {
     setState(prev => ({ ...prev, projects: [...prev.projects, newProject] }));
   };
 
+  const exportDataAsJSON = () => {
+    const exportData = {
+      version: '1.0.0',
+      exportDate: new Date().toISOString(),
+      user: {
+        email: currentUser?.email || 'unknown',
+        uid: currentUser?.uid || 'unknown'
+      },
+      data: state
+    };
+
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+    const exportFileDefaultName = `pace-pilot-export-${new Date().toISOString().split('T')[0]}.json`;
+
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+
+    success('Data exported successfully!');
+  };
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    success(`${newTheme === 'light' ? 'Light' : 'Dark'} mode enabled`);
+  };
+
   if (loading) {
     return <LoadingScreen />;
   }
@@ -1394,16 +1996,33 @@ export default function App() {
 
   return (
     <HashRouter>
-      <div className="min-h-screen bg-deepnavy flex text-white font-sans selection:bg-pilot-orange/30">
-        <Sidebar isCollapsed={false} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
-        <main className="flex-1 transition-all duration-300 ease-in-out p-6 lg:p-12 lg:ml-72 flex flex-col h-screen overflow-hidden relative">
-          <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} />
-          <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-12">
+      <ToastContainer toasts={toasts} onClose={removeToast} />
+      {showProfile && currentUser && (
+        <UserProfile user={currentUser} onClose={() => setShowProfile(false)} onLogout={handleLogout} onExport={exportDataAsJSON} />
+      )}
+      <KeyboardShortcuts isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      <div className={`min-h-screen flex font-sans selection:bg-pilot-orange/30 ${focusMode ? 'focus-mode' : ''} ${theme === 'dark' ? 'bg-deepnavy text-white' : 'bg-gray-50 text-gray-900'}`}>
+        {!focusMode && <Sidebar isCollapsed={isSidebarCollapsed} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)} />}
+        <main className={`flex-1 transition-all duration-300 ease-in-out p-6 lg:p-12 ${!focusMode ? (isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72') : ''} flex flex-col h-screen overflow-hidden relative`}>
+          {!focusMode && <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} onShowProfile={() => setShowProfile(true)} user={currentUser} focusMode={focusMode} toggleFocusMode={() => setFocusMode(!focusMode)} searchQuery={searchQuery} setSearchQuery={setSearchQuery} theme={theme} toggleTheme={toggleTheme} onShowMusicPlayer={() => setShowMusicPlayer(true)} />}
+          {focusMode && (
+            <button
+              onClick={() => setFocusMode(false)}
+              className="fixed top-6 right-6 z-50 bg-pilot-orange hover:bg-pilot-orange/90 text-white p-3 rounded-full shadow-2xl transition-all hover:scale-110 active:scale-95 group"
+              title="Exit Focus Mode (F)"
+            >
+              <X size={24} />
+              <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-prussianblue border border-white/10 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                Exit Focus Mode (F)
+              </span>
+            </button>
+          )}
+          <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-20 lg:pb-12">
             <Routes>
-              <Route path="/" element={<WorkdayPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} setEnergy={setEnergy} />} />
+              <Route path="/" element={<WorkdayPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} setEnergy={setEnergy} duplicateTask={duplicateTask} deleteTask={deleteTask} searchQuery={searchQuery} />} />
               <Route path="/planner" element={<WeeklyPlannerPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} />} />
-              <Route path="/projects" element={<ProjectsPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} addProject={addProject} />} />
-              <Route path="/projects/:projectId" element={<ProjectsPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} addProject={addProject} />} />
+              <Route path="/projects" element={<ProjectsPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} addProject={addProject} duplicateTask={duplicateTask} deleteTask={deleteTask} />} />
+              <Route path="/projects/:projectId" element={<ProjectsPage state={state} setState={setState} toggleTask={toggleTask} updateTask={updateTask} addProject={addProject} duplicateTask={duplicateTask} deleteTask={deleteTask} />} />
               <Route path="/recurring" element={<RecurringTasksPage tasks={state.recurringTasks} onToggle={toggleRecurring} />} />
               <Route path="/reports" element={<ReportsPage reports={state.dailyReports} tasks={state.tasks} />} />
               <Route path="/calendar" element={<CalendarPage events={state.calendarEvents} onAdd={addCalendarEvent} />} />
@@ -1411,7 +2030,9 @@ export default function App() {
             </Routes>
           </div>
         </main>
+        {!focusMode && <MobileBottomNav />}
       </div>
+      {showMusicPlayer && <MusicPlayer onClose={() => setShowMusicPlayer(false)} />}
       <style>{`
         @keyframes bounce-short { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
         .animate-bounce-short { animation: bounce-short 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
@@ -1423,6 +2044,81 @@ export default function App() {
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(243,115,36,0.3); }
+
+        /* Light mode overrides */
+        html.light {
+          background: #f9fafb;
+        }
+
+        html.light .bg-prussianblue {
+          background: white !important;
+          border-color: rgba(0,0,0,0.1) !important;
+        }
+
+        html.light .bg-deepnavy {
+          background: #f3f4f6 !important;
+        }
+
+        html.light .text-white {
+          color: #111827 !important;
+        }
+
+        html.light .text-white\\/70 {
+          color: #4b5563 !important;
+        }
+
+        html.light .text-white\\/40 {
+          color: #9ca3af !important;
+        }
+
+        html.light .text-white\\/30 {
+          color: #d1d5db !important;
+        }
+
+        html.light .text-white\\/20 {
+          color: #e5e7eb !important;
+        }
+
+        html.light .border-white\\/10 {
+          border-color: rgba(0,0,0,0.1) !important;
+        }
+
+        html.light .border-white\\/5 {
+          border-color: rgba(0,0,0,0.05) !important;
+        }
+
+        html.light .bg-white\\/5 {
+          background: rgba(0,0,0,0.03) !important;
+        }
+
+        html.light .bg-white\\/10 {
+          background: rgba(0,0,0,0.05) !important;
+        }
+
+        html.light .bg-white\\/\\[0.03\\] {
+          background: rgba(0,0,0,0.02) !important;
+        }
+
+        html.light select option {
+          background: white;
+          color: #111827;
+        }
+
+        html.light ::-webkit-scrollbar-thumb {
+          background: rgba(0,0,0,0.1);
+        }
+
+        html.light ::-webkit-scrollbar-thumb:hover {
+          background: rgba(243,115,36,0.4);
+        }
+
+        html.light .hover\\:bg-white\\/5:hover {
+          background: rgba(0,0,0,0.05) !important;
+        }
+
+        html.light .hover\\:text-white:hover {
+          color: #111827 !important;
+        }
       `}</style>
     </HashRouter>
   );
