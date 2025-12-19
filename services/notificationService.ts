@@ -78,7 +78,7 @@ class NotificationService {
   // Predefined notification types
   async pomodoroComplete() {
     await this.send({
-      title: '🎯 Pomodoro Complete!',
+      title: 'Pomodoro Complete!',
       body: 'Great focus session! Time for a break.',
       tag: 'pomodoro-complete',
       requireInteraction: true,
@@ -87,7 +87,7 @@ class NotificationService {
 
   async breakComplete() {
     await this.send({
-      title: '⚡ Break Over!',
+      title: 'Break Over!',
       body: 'Ready to get back to work?',
       tag: 'break-complete',
       requireInteraction: true,
@@ -96,7 +96,7 @@ class NotificationService {
 
   async taskReminder(taskTitle: string) {
     await this.send({
-      title: '📋 Task Reminder',
+      title: 'Task Reminder',
       body: `Don't forget: ${taskTitle}`,
       tag: `task-${taskTitle}`,
     });
@@ -104,8 +104,8 @@ class NotificationService {
 
   async dailyGoalComplete() {
     await this.send({
-      title: '🎉 Daily Goal Complete!',
-      body: 'You've completed all your tasks for today!',
+      title: 'Daily Goal Complete!',
+      body: 'You have completed all your tasks for today!',
       tag: 'daily-complete',
       requireInteraction: true,
     });
@@ -113,8 +113,8 @@ class NotificationService {
 
   async streakMilestone(days: number) {
     await this.send({
-      title: `🔥 ${days}-Day Streak!`,
-      body: `Amazing! You've maintained your productivity streak for ${days} days!`,
+      title: `${days}-Day Streak!`,
+      body: `Amazing! You have maintained your productivity streak for ${days} days!`,
       tag: 'streak-milestone',
       requireInteraction: true,
     });
