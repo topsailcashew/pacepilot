@@ -20,6 +20,8 @@ export interface Task {
   isRecurring?: boolean;
   recurringInterval?: 'Daily' | 'Weekly' | 'Monthly';
   subtasks?: Subtask[];
+  collaboration?: string;
+  timeSpent?: number; // in minutes
 }
 
 export interface Project {

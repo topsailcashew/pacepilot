@@ -155,10 +155,16 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen, toggleCollapse }: { isCollaps
                         key={item.path}
                         to={item.path}
                         onClick={() => setIsOpen(false)}
-                        className={`flex items-center gap-3 p-3.5 rounded-lg transition-all duration-200 group relative ${isActive ? 'bg-pilot-orange text-white' : 'text-white/40 hover:text-white/80 hover:bg-white/5'}`}
+                        className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} p-3.5 rounded-lg transition-all duration-200 group relative ${isActive ? 'bg-pilot-orange text-white' : 'text-white/40 hover:text-white/80 hover:bg-white/5'}`}
+                        title={isCollapsed ? item.label : undefined}
                       >
                         <Icon size={18} className={isActive ? 'text-white' : 'text-white/30 group-hover:text-white/50'} />
                         {!isCollapsed && <span className="text-sm font-bold">{item.label}</span>}
+                        {isCollapsed && (
+                          <span className="absolute left-full ml-4 px-3 py-1.5 bg-prussianblue border border-white/10 rounded-lg text-xs font-bold text-white whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity shadow-xl z-50">
+                            {item.label}
+                          </span>
+                        )}
                       </Link>
                     );
                   })}
@@ -168,18 +174,27 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen, toggleCollapse }: { isCollaps
           </div>
 
           {/* Collapse Toggle Button */}
-          <button
-            onClick={toggleCollapse}
-            className="hidden lg:flex mt-auto items-center justify-center gap-2 p-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 hover:text-white transition-all group"
-            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {isCollapsed ? <ChevronRight size={18} /> : (
-              <>
-                <ChevronLeft size={18} />
-                <span className="text-xs font-bold uppercase tracking-wider">Collapse</span>
-              </>
-            )}
-          </button>
+          <div className="hidden lg:block mt-auto pt-4 border-t border-white/5">
+            <button
+              onClick={toggleCollapse}
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} p-3 rounded-lg bg-pilot-orange/10 hover:bg-pilot-orange/20 border border-pilot-orange/20 text-pilot-orange hover:text-pilot-orange transition-all group relative`}
+              title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {isCollapsed ? (
+                <>
+                  <ChevronRight size={18} className="group-hover:scale-110 transition-transform" />
+                  <span className="absolute left-full ml-4 px-3 py-1.5 bg-prussianblue border border-white/10 rounded-lg text-xs font-bold text-white whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity shadow-xl z-50">
+                    Expand
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-xs font-bold uppercase tracking-wider">Collapse</span>
+                  <ChevronLeft size={18} className="group-hover:scale-110 transition-transform" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </aside>
     </>
@@ -427,6 +442,16 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing,
                   onChange={(e) => updateTask(task.id, { description: e.target.value })}
                   placeholder="NO DESCRIPTION..."
                   className="w-full bg-deepnavy border border-white/5 rounded-lg p-3 text-xs text-white/80 focus:outline-none h-24 resize-none placeholder:opacity-10"
+                />
+              </div>
+              <div>
+                <label className={THEME.label}>Collaboration</label>
+                <input
+                  type="text"
+                  value={task.collaboration || ''}
+                  onChange={(e) => updateTask(task.id, { collaboration: e.target.value })}
+                  placeholder="WHO ARE YOU WORKING WITH..."
+                  className="w-full bg-deepnavy border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white/80 focus:outline-none placeholder:opacity-10"
                 />
               </div>
             </div>
@@ -2052,7 +2077,7 @@ export default function App() {
 
         html.light .bg-prussianblue {
           background: white !important;
-          border-color: rgba(0,0,0,0.1) !important;
+          border-color: rgba(0,0,0,0.15) !important;
         }
 
         html.light .bg-deepnavy {
@@ -2064,39 +2089,55 @@ export default function App() {
         }
 
         html.light .text-white\\/70 {
-          color: #4b5563 !important;
+          color: #374151 !important;
         }
 
         html.light .text-white\\/40 {
-          color: #9ca3af !important;
+          color: #6b7280 !important;
         }
 
         html.light .text-white\\/30 {
-          color: #d1d5db !important;
+          color: #9ca3af !important;
         }
 
         html.light .text-white\\/20 {
+          color: #d1d5db !important;
+        }
+
+        html.light .text-white\\/10 {
           color: #e5e7eb !important;
         }
 
         html.light .border-white\\/10 {
-          border-color: rgba(0,0,0,0.1) !important;
+          border-color: rgba(0,0,0,0.15) !important;
         }
 
         html.light .border-white\\/5 {
-          border-color: rgba(0,0,0,0.05) !important;
+          border-color: rgba(0,0,0,0.1) !important;
         }
 
         html.light .bg-white\\/5 {
-          background: rgba(0,0,0,0.03) !important;
+          background: rgba(0,0,0,0.04) !important;
         }
 
         html.light .bg-white\\/10 {
-          background: rgba(0,0,0,0.05) !important;
+          background: rgba(0,0,0,0.06) !important;
         }
 
         html.light .bg-white\\/\\[0.03\\] {
+          background: rgba(0,0,0,0.03) !important;
+        }
+
+        html.light .bg-white\\/\\[0.02\\] {
           background: rgba(0,0,0,0.02) !important;
+        }
+
+        html.light .bg-white\\/\\[0.01\\] {
+          background: rgba(0,0,0,0.01) !important;
+        }
+
+        html.light .bg-white\\/\\[0.04\\] {
+          background: rgba(0,0,0,0.04) !important;
         }
 
         html.light select option {
@@ -2105,19 +2146,31 @@ export default function App() {
         }
 
         html.light ::-webkit-scrollbar-thumb {
-          background: rgba(0,0,0,0.1);
+          background: rgba(0,0,0,0.15);
         }
 
         html.light ::-webkit-scrollbar-thumb:hover {
-          background: rgba(243,115,36,0.4);
+          background: rgba(243,115,36,0.5);
         }
 
         html.light .hover\\:bg-white\\/5:hover {
-          background: rgba(0,0,0,0.05) !important;
+          background: rgba(0,0,0,0.06) !important;
+        }
+
+        html.light .hover\\:bg-white\\/10:hover {
+          background: rgba(0,0,0,0.08) !important;
         }
 
         html.light .hover\\:text-white:hover {
           color: #111827 !important;
+        }
+
+        html.light input::placeholder {
+          color: rgba(0,0,0,0.3) !important;
+        }
+
+        html.light textarea::placeholder {
+          color: rgba(0,0,0,0.3) !important;
         }
       `}</style>
     </HashRouter>
