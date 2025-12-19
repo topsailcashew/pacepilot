@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { User, Mail, Calendar, Zap, Settings as SettingsIcon, Shield, Bell, Palette, Keyboard, LogOut } from 'lucide-react';
+import { User, Mail, Calendar, Zap, Settings as SettingsIcon, Shield, Bell, Palette, Keyboard, LogOut, Download } from 'lucide-react';
 
 interface UserProfileProps {
   user: any;
   onClose: () => void;
   onLogout: () => void;
+  onExport?: () => void;
 }
 
-const UserProfile: React.FC<UserProfileProps> = ({ user, onClose, onLogout }) => {
+const UserProfile: React.FC<UserProfileProps> = ({ user, onClose, onLogout, onExport }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'settings' | 'preferences'>('profile');
 
   const tabs = [
@@ -78,7 +79,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, onClose, onLogout }) =>
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-8">
           {activeTab === 'profile' && <ProfileTab user={user} />}
-          {activeTab === 'settings' && <SettingsTab />}
+          {activeTab === 'settings' && <SettingsTab onExport={onExport} />}
           {activeTab === 'preferences' && <PreferencesTab />}
         </div>
 
@@ -155,9 +156,38 @@ const ProfileTab: React.FC<{ user: any }> = ({ user }) => {
   );
 };
 
-const SettingsTab: React.FC = () => {
+const SettingsTab: React.FC<{ onExport?: () => void }> = ({ onExport }) => {
   return (
     <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-black uppercase tracking-wider text-white/30 mb-4">Data Management</h3>
+        <div className="space-y-3">
+          {onExport && (
+            <button
+              onClick={onExport}
+              className="w-full bg-pilot-orange/10 hover:bg-pilot-orange/20 border border-pilot-orange/20 rounded-lg p-4 text-left transition-all flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-3">
+                <Download size={20} className="text-pilot-orange" />
+                <div>
+                  <p className="text-white font-bold text-sm">Export Data as JSON</p>
+                  <p className="text-xs text-white/40 mt-1">Download all your data</p>
+                </div>
+              </div>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                className="text-pilot-orange"
+              >
+                <path d="M6 12L10 8L6 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+
       <div>
         <h3 className="text-sm font-black uppercase tracking-wider text-white/30 mb-4">Security</h3>
         <div className="space-y-3">

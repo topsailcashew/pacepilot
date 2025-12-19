@@ -1378,6 +1378,15 @@ export default function App() {
     currentStreak: 0,
   });
 
+  // Undo/Redo history stack
+  type HistoryAction = {
+    type: 'task_delete' | 'task_update' | 'task_create' | 'task_toggle';
+    data: any;
+    timestamp: number;
+  };
+  const [history, setHistory] = useState<HistoryAction[]>([]);
+  const [redoStack, setRedoStack] = useState<HistoryAction[]>([]);
+
   useEffect(() => {
     const checkAuth = () => {
       // Check if user is already authenticated (e.g., from localStorage)
@@ -1423,6 +1432,18 @@ export default function App() {
         return;
       }
 
+      // Cmd/Ctrl+Z for Undo
+      if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+
+      // Cmd/Ctrl+Shift+Z for Redo
+      if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+        e.preventDefault();
+        handleRedo();
+      }
+
       // ? key for Keyboard Shortcuts overlay
       if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
@@ -1446,7 +1467,87 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [focusMode, info, showShortcuts, showProfile]);
+  }, [focusMode, info, showShortcuts, showProfile, history, redoStack]);
+
+  const handleUndo = () => {
+    if (history.length === 0) {
+      info('Nothing to undo');
+      return;
+    }
+
+    const lastAction = history[history.length - 1];
+    const newHistory = history.slice(0, -1);
+    setHistory(newHistory);
+    setRedoStack([...redoStack, lastAction]);
+
+    // Reverse the action
+    switch (lastAction.type) {
+      case 'task_delete':
+        // Restore deleted task
+        setState(prev => ({ ...prev, tasks: [...prev.tasks, lastAction.data] }));
+        success('Restored deleted task');
+        break;
+      case 'task_create':
+        // Remove created task
+        setState(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== lastAction.data.id) }));
+        success('Undone task creation');
+        break;
+      case 'task_toggle':
+        // Toggle back
+        setState(prev => ({
+          ...prev,
+          tasks: prev.tasks.map(t => t.id === lastAction.data.id ? lastAction.data : t)
+        }));
+        success('Undone task toggle');
+        break;
+      case 'task_update':
+        // Restore previous state
+        setState(prev => ({
+          ...prev,
+          tasks: prev.tasks.map(t => t.id === lastAction.data.id ? lastAction.data : t)
+        }));
+        success('Undone task update');
+        break;
+    }
+  };
+
+  const handleRedo = () => {
+    if (redoStack.length === 0) {
+      info('Nothing to redo');
+      return;
+    }
+
+    const lastRedo = redoStack[redoStack.length - 1];
+    const newRedoStack = redoStack.slice(0, -1);
+    setRedoStack(newRedoStack);
+    setHistory([...history, lastRedo]);
+
+    // Redo the action
+    switch (lastRedo.type) {
+      case 'task_delete':
+        setState(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== lastRedo.data.id) }));
+        success('Redone task deletion');
+        break;
+      case 'task_create':
+        setState(prev => ({ ...prev, tasks: [...prev.tasks, lastRedo.data] }));
+        success('Redone task creation');
+        break;
+      case 'task_toggle':
+        setState(prev => ({
+          ...prev,
+          tasks: prev.tasks.map(t => t.id === lastRedo.data.id ? { ...t, isCompleted: !t.isCompleted } : t)
+        }));
+        success('Redone task toggle');
+        break;
+      case 'task_update':
+        setState(prev => ({
+          ...prev,
+          tasks: prev.tasks.map(t => t.id === lastRedo.data.id ? lastRedo.data : t)
+        }));
+        success('Redone task update');
+        break;
+    }
+  };
 
   const handleLogin = (user?: any) => {
     setIsAuthenticated(true);
@@ -1463,11 +1564,23 @@ export default function App() {
   };
 
   const toggleTask = (id: string) => {
+    const task = state.tasks.find(t => t.id === id);
+    if (task) {
+      // Add to history before changing
+      setHistory(prev => [...prev, { type: 'task_toggle', data: task, timestamp: Date.now() }]);
+      setRedoStack([]); // Clear redo stack on new action
+    }
     setState(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === id ? { ...t, isCompleted: !t.isCompleted } : t) }));
     success('Task updated!');
   };
 
   const updateTask = (id: string, updates: Partial<Task>) => {
+    const task = state.tasks.find(t => t.id === id);
+    if (task) {
+      // Add to history before changing
+      setHistory(prev => [...prev, { type: 'task_update', data: task, timestamp: Date.now() }]);
+      setRedoStack([]); // Clear redo stack on new action
+    }
     setState(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === id ? { ...t, ...updates } : t) }));
   };
 
@@ -1475,14 +1588,23 @@ export default function App() {
     const task = state.tasks.find(t => t.id === id);
     if (task) {
       const newTask = { ...task, id: Math.random().toString(36).substr(2, 9), title: `${task.title} (Copy)`, isCompleted: false };
+      // Add to history for undo
+      setHistory(prev => [...prev, { type: 'task_create', data: newTask, timestamp: Date.now() }]);
+      setRedoStack([]);
       setState(prev => ({ ...prev, tasks: [...prev.tasks, newTask] }));
       success('Task duplicated!');
     }
   };
 
   const deleteTask = (id: string) => {
-    setState(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== id) }));
-    success('Task deleted!');
+    const task = state.tasks.find(t => t.id === id);
+    if (task) {
+      // Add to history before deleting
+      setHistory(prev => [...prev, { type: 'task_delete', data: task, timestamp: Date.now() }]);
+      setRedoStack([]);
+      setState(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== id) }));
+      success('Task deleted!');
+    }
   };
 
   const toggleRecurring = (id: string) => {
@@ -1500,6 +1622,29 @@ export default function App() {
   const addProject = (name: string) => {
     const newProject: Project = { id: Math.random().toString(36).substr(2, 9), name, color: 'bg-pilot-orange', icon: 'Folder' };
     setState(prev => ({ ...prev, projects: [...prev.projects, newProject] }));
+  };
+
+  const exportDataAsJSON = () => {
+    const exportData = {
+      version: '1.0.0',
+      exportDate: new Date().toISOString(),
+      user: {
+        email: currentUser?.email || 'unknown',
+        uid: currentUser?.uid || 'unknown'
+      },
+      data: state
+    };
+
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+    const exportFileDefaultName = `pace-pilot-export-${new Date().toISOString().split('T')[0]}.json`;
+
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+
+    success('Data exported successfully!');
   };
 
   if (loading) {
