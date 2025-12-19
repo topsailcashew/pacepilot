@@ -345,6 +345,9 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing,
   const [isExpanded, setIsExpanded] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [isTracking, setIsTracking] = useState(false);
+  const [trackingStartTime, setTrackingStartTime] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
 
   const handleToggleComplete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -383,6 +386,36 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing,
     const updatedSubtasks = (task.subtasks || []).filter(st => st.id !== subtaskId);
     updateTask(task.id, { subtasks: updatedSubtasks });
   };
+
+  const handleStartTracking = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsTracking(true);
+    setTrackingStartTime(Date.now());
+    setElapsedTime(task.timeSpent || 0);
+  };
+
+  const handleStopTracking = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (trackingStartTime) {
+      const additionalMinutes = Math.floor((Date.now() - trackingStartTime) / 60000);
+      const totalMinutes = (task.timeSpent || 0) + additionalMinutes;
+      updateTask(task.id, { timeSpent: totalMinutes });
+      setElapsedTime(totalMinutes);
+    }
+    setIsTracking(false);
+    setTrackingStartTime(null);
+  };
+
+  // Update elapsed time while tracking
+  useEffect(() => {
+    if (isTracking && trackingStartTime) {
+      const interval = setInterval(() => {
+        const additionalMinutes = Math.floor((Date.now() - trackingStartTime) / 60000);
+        setElapsedTime((task.timeSpent || 0) + additionalMinutes);
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [isTracking, trackingStartTime, task.timeSpent]);
 
   const currentProject = projects.find(p => p.id === task.projectId);
 
@@ -466,6 +499,36 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing,
               <label className={THEME.label}>Vibe Requirement</label>
               <div className="px-4 py-2.5 bg-deepnavy border border-white/5 rounded-lg text-xs font-bold text-white/60">
                 {task.energyRequired} INTENSITY
+              </div>
+            </div>
+            <div>
+              <label className={THEME.label}>Time Tracking</label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 px-4 py-2.5 bg-deepnavy border border-white/5 rounded-lg flex items-center justify-between">
+                  <span className="text-xs font-bold text-white/60">
+                    {elapsedTime > 0 ? `${elapsedTime} min` : 'No time logged'}
+                  </span>
+                  {isTracking && (
+                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  )}
+                </div>
+                {!isTracking ? (
+                  <button
+                    onClick={handleStartTracking}
+                    className="px-4 py-2.5 bg-pilot-orange/10 hover:bg-pilot-orange/20 border border-pilot-orange/20 rounded-lg text-xs font-bold text-pilot-orange transition-all flex items-center gap-2"
+                  >
+                    <Play size={12} />
+                    Start
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStopTracking}
+                    className="px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-xs font-bold text-red-400 transition-all flex items-center gap-2"
+                  >
+                    <X size={12} />
+                    Stop
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1080,27 +1143,10 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
 
   return (
     <div className="animate-in fade-in duration-500 pb-12 space-y-12 relative print-container">
-      <button
-        onClick={() => window.print()}
-        className="no-print fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-pilot-orange hover:bg-pilot-orange/90 text-white font-bold rounded-lg shadow-2xl transition-all hover:scale-105 active:scale-95"
-      >
-        <Printer size={20} />
-        <span className="hidden md:inline">Print Report</span>
-      </button>
-
       <section className={THEME.card}>
-        <div className="flex items-center justify-between mb-10">
-          <div className="flex items-center gap-3">
-            <TrendingUp size={24} className="text-pilot-orange" />
-            <h3 className="text-xl font-black text-white uppercase tracking-widest">PRODUCTIVITY OVERVIEW</h3>
-          </div>
-          <button
-            onClick={() => window.print()}
-            className="no-print flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white/70 hover:text-white transition-all"
-          >
-            <Printer size={16} />
-            <span className="text-xs font-bold uppercase tracking-wider">Print</span>
-          </button>
+        <div className="flex items-center gap-3 mb-10">
+          <TrendingUp size={24} className="text-pilot-orange" />
+          <h3 className="text-xl font-black text-white uppercase tracking-widest">PRODUCTIVITY OVERVIEW</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
