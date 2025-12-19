@@ -50,6 +50,7 @@ import {
 import { EnergyLevel, Task, Project, DailyReport, AppState, CalendarEvent, RecurringTask } from './types';
 import { ENERGY_LEVELS, CATEGORIES } from './constants';
 import { generateDailyReport, getWeeklyInsights } from './services/geminiService';
+import notificationService from './services/notificationService';
 import PomodoroTimer from './components/PomodoroTimer';
 import LoginPage from './components/LoginPage';
 import LoadingScreen from './components/LoadingScreen';
@@ -1451,6 +1452,12 @@ export default function App() {
       const savedAuth = localStorage.getItem('isAuthenticated');
       if (savedAuth === 'true') {
         setIsAuthenticated(true);
+        // Request notification permission after login
+        setTimeout(() => {
+          if (notificationService.isSupported() && !notificationService.hasPermission()) {
+            notificationService.requestPermission();
+          }
+        }, 3000); // Wait 3 seconds after app loads
       }
       setLoading(false);
     };
