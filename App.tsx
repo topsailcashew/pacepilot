@@ -63,7 +63,7 @@ import UserProfile from './components/UserProfile';
 import { ToastContainer, useToast } from './components/Toast';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
 import MobileBottomNav from './components/MobileBottomNav';
-import MusicPlayer from './components/MusicPlayer';
+import YouTubeMusicPlayer from './components/YouTubeMusicPlayer';
 import AIPilot from './components/AIPilot';
 import BrainDump from './components/BrainDump';
 import {
@@ -723,27 +723,11 @@ const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, dupli
               ))}
             </div>
           </div>
-          <div className="bg-white/[0.02] border border-white/5 rounded-lg p-5 mb-8 flex gap-3 shadow-inner">
+          <div className="bg-white/[0.02] border border-white/5 rounded-lg p-5 flex gap-3 shadow-inner">
             <Brain size={20} className="text-pilot-orange shrink-0" />
             <p className="text-xs text-white/50 leading-relaxed italic">
               Prioritise tasks aligned with your <span className="text-pilot-orange font-bold">"{state.energyLevel || 'vibe'}"</span> energy level to maintain maximum flow state.
             </p>
-          </div>
-          <div className="mt-auto pt-6 border-t border-white/5">
-             <div className="flex items-center justify-between mb-6">
-               <span className="text-sm font-black text-white/40 uppercase tracking-widest">Acoustic Shield</span>
-               <Settings size={14} className="text-white/20 cursor-pointer hover:text-white transition-colors" />
-            </div>
-            <div className="flex flex-col items-center">
-              <div className="flex items-center gap-10 mb-6">
-                <SkipBack size={18} className="text-white/20 cursor-pointer hover:text-white" />
-                <button className="bg-pilot-orange text-white p-4 rounded-lg shadow-xl shadow-pilot-orange/30 hover:scale-105 active:scale-95 transition-all"><Play size={20} fill="currentColor" /></button>
-                <SkipForward size={18} className="text-white/20 cursor-pointer hover:text-white" />
-              </div>
-              <div className="w-full bg-white/5 h-1.5 rounded-full relative">
-                 <div className="absolute top-0 left-0 h-full w-[65%] bg-pilot-orange rounded-full shadow-[0_0_10px_rgba(243,115,36,0.5)]" />
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -2249,7 +2233,12 @@ export default function App() {
         </main>
         {!focusMode && <MobileBottomNav />}
       </div>
-      {showMusicPlayer && <MusicPlayer onClose={() => setShowMusicPlayer(false)} />}
+      {showMusicPlayer && (
+        <YouTubeMusicPlayer
+          onClose={() => setShowMusicPlayer(false)}
+          energyLevel={state.energyLevel || 'Medium'}
+        />
+      )}
       <AIPilot
         taskCount={state.tasks.length}
         completedToday={state.tasks.filter(t => t.isCompleted && t.createdAt.startsWith(new Date().toISOString().split('T')[0])).length}
