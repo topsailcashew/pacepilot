@@ -48,7 +48,8 @@ import {
   Printer,
   Sun,
   Moon,
-  Music
+  Music,
+  Mic
 } from 'lucide-react';
 import { EnergyLevel, Task, Project, DailyReport, AppState, CalendarEvent, RecurringTask, Subtask } from './types';
 import { ENERGY_LEVELS, CATEGORIES } from './constants';
@@ -64,6 +65,7 @@ import KeyboardShortcuts from './components/KeyboardShortcuts';
 import MobileBottomNav from './components/MobileBottomNav';
 import MusicPlayer from './components/MusicPlayer';
 import AIPilot from './components/AIPilot';
+import BrainDump from './components/BrainDump';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
@@ -630,6 +632,7 @@ const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, dupli
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportResult, setReportResult] = useState<string | null>(null);
+  const [showBrainDump, setShowBrainDump] = useState(false);
 
   const [energyFilter, setEnergyFilter] = useState<EnergyLevel | 'All'>('All');
 
@@ -675,6 +678,21 @@ const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, dupli
     };
     setState(prev => ({ ...prev, tasks: [newTask, ...prev.tasks] }));
     setIsAddingTask(false);
+  };
+
+  const handleBrainDumpTasks = (generatedTasks: Partial<Task>[]) => {
+    const newTasks = generatedTasks.map(task => ({
+      id: Math.random().toString(36).substr(2, 9),
+      title: task.title || 'Untitled Task',
+      description: task.description,
+      energyRequired: task.energyRequired || 'Medium',
+      isCompleted: false,
+      createdAt: new Date().toISOString(),
+      projectId: task.projectId,
+      dueDate: task.dueDate,
+    } as Task));
+
+    setState(prev => ({ ...prev, tasks: [...newTasks, ...prev.tasks] }));
   };
 
   return (
@@ -766,9 +784,17 @@ const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, dupli
           <div className="lg:col-span-8 space-y-3">
              <div className="flex items-center justify-between px-1 mb-2">
               <p className={THEME.label}>Mission Log</p>
-              <button onClick={() => setIsAddingTask(true)} className="text-[10px] font-black uppercase tracking-widest text-pilot-orange flex items-center gap-1.5 hover:text-white transition-colors">
-                <Plus size={14} /> New Entry
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowBrainDump(true)}
+                  className="text-[10px] font-black uppercase tracking-widest text-pilot-orange flex items-center gap-1.5 hover:text-white transition-colors"
+                >
+                  <Mic size={14} /> Brain Dump
+                </button>
+                <button onClick={() => setIsAddingTask(true)} className="text-[10px] font-black uppercase tracking-widest text-pilot-orange flex items-center gap-1.5 hover:text-white transition-colors">
+                  <Plus size={14} /> New Entry
+                </button>
+              </div>
             </div>
             {filteredTasks.length === 0 ? (
               <div className="text-center py-20 bg-white/[0.01] rounded-xl border border-dashed border-white/10">
@@ -855,6 +881,15 @@ const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, dupli
           <button type="submit" className={`${THEME.buttonPrimary} w-full py-4 text-xs font-black uppercase tracking-widest`}>AUTHORISE MISSION</button>
         </form>
       </Modal>
+
+      {showBrainDump && (
+        <BrainDump
+          onClose={() => setShowBrainDump(false)}
+          onTasksGenerated={handleBrainDumpTasks}
+          projects={state.projects}
+          mode="workday"
+        />
+      )}
     </div>
   );
 };
@@ -930,14 +965,15 @@ const RecurringTasksPage = ({ tasks, onToggle }: { tasks: RecurringTask[], onTog
 
 // --- Weekly Planner Page ---
 
-const WeeklyPlannerPage = ({ state, setState, toggleTask, updateTask }: { 
-  state: AppState; 
+const WeeklyPlannerPage = ({ state, setState, toggleTask, updateTask }: {
+  state: AppState;
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   toggleTask: (id: string) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
 }) => {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [isAddingTask, setIsAddingTask] = useState(false);
+  const [showBrainDump, setShowBrainDump] = useState(false);
 
   // Generate current week dates
   const weekDates = useMemo(() => {
@@ -961,7 +997,7 @@ const WeeklyPlannerPage = ({ state, setState, toggleTask, updateTask }: {
   const handleAddTaskToDay = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (selectedDay === null) return;
-    
+
     const formData = new FormData(e.currentTarget);
     const newTask: Task = {
       id: Math.random().toString(36).substr(2, 9),
@@ -976,6 +1012,21 @@ const WeeklyPlannerPage = ({ state, setState, toggleTask, updateTask }: {
     setIsAddingTask(false);
   };
 
+  const handleBrainDumpTasks = (generatedTasks: Partial<Task>[]) => {
+    const newTasks = generatedTasks.map(task => ({
+      id: Math.random().toString(36).substr(2, 9),
+      title: task.title || 'Untitled Task',
+      description: task.description,
+      energyRequired: task.energyRequired || 'Medium',
+      isCompleted: false,
+      createdAt: new Date().toISOString(),
+      projectId: task.projectId,
+      dueDate: task.dueDate,
+    } as Task));
+
+    setState(prev => ({ ...prev, tasks: [...newTasks, ...prev.tasks] }));
+  };
+
   return (
     <div className="animate-in fade-in duration-500 pb-12 space-y-10">
       <div className="flex items-center justify-between px-2">
@@ -984,6 +1035,12 @@ const WeeklyPlannerPage = ({ state, setState, toggleTask, updateTask }: {
           <p className="text-[10px] text-white/30 font-bold uppercase tracking-[0.2em] mt-2">SECTOR LOGISTICS & TEMPORAL MAPPING</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowBrainDump(true)}
+            className="px-6 py-3 bg-pilot-orange hover:bg-pilot-orange/90 text-white rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
+          >
+            <Mic size={14} /> Brain Dump
+          </button>
           <div className="bg-white/5 border border-white/10 p-1.5 rounded-lg flex gap-1">
              <button className="p-2 text-white/20 hover:text-white transition-colors"><ChevronLeft size={16}/></button>
              <span className="px-4 py-2 text-[10px] font-black text-white/60 uppercase tracking-widest flex items-center">Current Sequence</span>
@@ -1097,6 +1154,15 @@ const WeeklyPlannerPage = ({ state, setState, toggleTask, updateTask }: {
           <button type="submit" className={`${THEME.buttonPrimary} w-full py-4 text-xs font-black uppercase tracking-widest`}>LOCK MISSION TO TIMELINE</button>
         </form>
       </Modal>
+
+      {showBrainDump && (
+        <BrainDump
+          onClose={() => setShowBrainDump(false)}
+          onTasksGenerated={handleBrainDumpTasks}
+          projects={state.projects}
+          mode="planner"
+        />
+      )}
     </div>
   );
 };
