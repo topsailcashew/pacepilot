@@ -63,6 +63,7 @@ import { ToastContainer, useToast } from './components/Toast';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
 import MobileBottomNav from './components/MobileBottomNav';
 import MusicPlayer from './components/MusicPlayer';
+import AIPilot from './components/AIPilot';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
@@ -2183,9 +2184,16 @@ export default function App() {
         {!focusMode && <MobileBottomNav />}
       </div>
       {showMusicPlayer && <MusicPlayer onClose={() => setShowMusicPlayer(false)} />}
+      <AIPilot
+        taskCount={state.tasks.length}
+        completedToday={state.tasks.filter(t => t.isCompleted && t.createdAt.startsWith(new Date().toISOString().split('T')[0])).length}
+        energyLevel={state.energyLevel || 'Medium'}
+      />
       <style>{`
         @keyframes bounce-short { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
         .animate-bounce-short { animation: bounce-short 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+        .animate-float { animation: float 3s ease-in-out infinite; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         select option { background: #11122C; color: white; font-weight: bold; }
         .snap-x { scroll-snap-type: x mandatory; }
