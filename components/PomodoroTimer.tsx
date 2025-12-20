@@ -197,7 +197,7 @@ const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       />
 
       <div className="mb-6">
-        <h3 className="text-lg font-bold text-white">Pomodoro Timer</h3>
+        <h3 className="text-lg font-bold text-white uppercase tracking-widest">POMODORO TIMER</h3>
         <p className="text-xs text-white/40 mt-1">
           {isActive ? '⏱️ Timer runs in background' : 'Select a task to focus on.'}
         </p>
