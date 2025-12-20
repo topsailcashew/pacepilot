@@ -24,6 +24,20 @@ export interface Task {
   timeSpent?: number; // in minutes
 }
 
+export interface TaskTemplate {
+  id: string;
+  name: string; // Template name
+  description?: string;
+  category?: string;
+  projectId?: string;
+  energyRequired: EnergyLevel;
+  isRecurring?: boolean;
+  recurringInterval?: 'Daily' | 'Weekly' | 'Monthly';
+  subtasks?: Omit<Subtask, 'id' | 'isCompleted'>[]; // Template subtasks without completion state
+  collaboration?: string;
+  createdAt: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -77,4 +91,5 @@ export interface AppState {
   energyLevel: EnergyLevel | null;
   dailyReports: DailyReport[];
   currentStreak: number;
+  taskTemplates: TaskTemplate[];
 }

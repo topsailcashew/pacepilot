@@ -49,9 +49,10 @@ import {
   Sun,
   Moon,
   Music,
-  Mic
+  Mic,
+  Copy
 } from 'lucide-react';
-import { EnergyLevel, Task, Project, DailyReport, AppState, CalendarEvent, RecurringTask, Subtask } from './types';
+import { EnergyLevel, Task, Project, DailyReport, AppState, CalendarEvent, RecurringTask, Subtask, TaskTemplate } from './types';
 import { ENERGY_LEVELS, CATEGORIES } from './constants';
 import { generateDailyReport, getWeeklyInsights } from './services/geminiService';
 import notificationService from './services/notificationService';
@@ -66,6 +67,7 @@ import MobileBottomNav from './components/MobileBottomNav';
 import YouTubeMusicPlayer from './components/YouTubeMusicPlayer';
 import AIPilot from './components/AIPilot';
 import BrainDump from './components/BrainDump';
+import TaskTemplates from './components/TaskTemplates';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
@@ -255,7 +257,7 @@ const Sidebar = ({
 
 // --- Header Component ---
 
-const TopBar = ({ toggleSidebar, onLogout, onShowProfile, user, focusMode, toggleFocusMode, searchQuery, setSearchQuery, theme, toggleTheme, onShowMusicPlayer }: { toggleSidebar: () => void; onLogout: () => void; onShowProfile: () => void; user: any; focusMode: boolean; toggleFocusMode: () => void; searchQuery: string; setSearchQuery: (q: string) => void; theme: 'light' | 'dark'; toggleTheme: () => void; onShowMusicPlayer: () => void }) => {
+const TopBar = ({ toggleSidebar, onLogout, onShowProfile, user, focusMode, toggleFocusMode, searchQuery, setSearchQuery, theme, toggleTheme, onShowMusicPlayer, onShowTemplates }: { toggleSidebar: () => void; onLogout: () => void; onShowProfile: () => void; user: any; focusMode: boolean; toggleFocusMode: () => void; searchQuery: string; setSearchQuery: (q: string) => void; theme: 'light' | 'dark'; toggleTheme: () => void; onShowMusicPlayer: () => void; onShowTemplates: () => void }) => {
   const [time, setTime] = useState(new Date());
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -313,6 +315,13 @@ const TopBar = ({ toggleSidebar, onLogout, onShowProfile, user, focusMode, toggl
           title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         >
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
+        <button
+          onClick={onShowTemplates}
+          className="bg-prussianblue border border-white/10 p-2.5 rounded-lg text-white/40 hover:text-green-400 hover:bg-white/5 transition-all"
+          title="Task Templates"
+        >
+          <Copy size={20} />
         </button>
         <button
           onClick={onShowMusicPlayer}
@@ -1892,6 +1901,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [showMusicPlayer, setShowMusicPlayer] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const { toasts, removeToast, success, error, info } = useToast();
   const [state, setState] = useState<AppState>({
     tasks: [],
@@ -1901,6 +1911,7 @@ export default function App() {
     energyLevel: 'Medium',
     dailyReports: [],
     currentStreak: 0,
+    taskTemplates: [],
   });
 
   // Undo/Redo history stack
@@ -1946,6 +1957,26 @@ export default function App() {
     // Update document root class for theme
     document.documentElement.classList.toggle('light', theme === 'light');
   }, [theme]);
+
+  // Load task templates from localStorage
+  useEffect(() => {
+    const savedTemplates = localStorage.getItem('taskTemplates');
+    if (savedTemplates) {
+      try {
+        const templates = JSON.parse(savedTemplates);
+        setState(prev => ({ ...prev, taskTemplates: templates }));
+      } catch (error) {
+        console.error('Failed to load templates from localStorage:', error);
+      }
+    }
+  }, []);
+
+  // Save task templates to localStorage
+  useEffect(() => {
+    if (state.taskTemplates.length > 0 || localStorage.getItem('taskTemplates')) {
+      localStorage.setItem('taskTemplates', JSON.stringify(state.taskTemplates));
+    }
+  }, [state.taskTemplates]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -2247,6 +2278,65 @@ export default function App() {
     setState(prev => ({ ...prev, energyLevel: level }));
   };
 
+  // Template management functions
+  const createTemplate = (templateData: Omit<TaskTemplate, 'id' | 'createdAt'>) => {
+    const newTemplate: TaskTemplate = {
+      id: Math.random().toString(36).substr(2, 9),
+      ...templateData,
+      createdAt: new Date().toISOString(),
+    };
+    setState(prev => ({ ...prev, taskTemplates: [...prev.taskTemplates, newTemplate] }));
+    success('Template created!');
+  };
+
+  const updateTemplate = (id: string, updates: Partial<TaskTemplate>) => {
+    setState(prev => ({
+      ...prev,
+      taskTemplates: prev.taskTemplates.map(t => t.id === id ? { ...t, ...updates } : t)
+    }));
+    success('Template updated!');
+  };
+
+  const deleteTemplate = (id: string) => {
+    setState(prev => ({ ...prev, taskTemplates: prev.taskTemplates.filter(t => t.id !== id) }));
+    success('Template deleted!');
+  };
+
+  const useTemplate = async (template: TaskTemplate) => {
+    if (!currentUser) return;
+
+    // Convert template to task with unique IDs for subtasks
+    const subtasksWithIds = template.subtasks?.map(st => ({
+      id: Math.random().toString(36).substr(2, 9),
+      title: st.title,
+      isCompleted: false
+    }));
+
+    const newTaskData = {
+      title: template.name,
+      description: template.description,
+      category: template.category,
+      projectId: template.projectId,
+      energyRequired: template.energyRequired,
+      isCompleted: false,
+      createdAt: new Date().toISOString(),
+      isRecurring: template.isRecurring,
+      recurringInterval: template.recurringInterval,
+      subtasks: subtasksWithIds,
+      collaboration: template.collaboration
+    };
+
+    // Add to Firestore
+    const newTaskId = await firestoreService.addTask(currentUser.uid, newTaskData);
+    const newTask: Task = {
+      id: String(newTaskId),
+      ...newTaskData
+    };
+
+    setState(prev => ({ ...prev, tasks: [...prev.tasks, newTask] }));
+    success('Task created from template!');
+  };
+
   const addProject = (name: string) => {
     const newProject: Project = { id: Math.random().toString(36).substr(2, 9), name, color: 'bg-pilot-orange', icon: 'Folder' };
     setState(prev => ({ ...prev, projects: [...prev.projects, newProject] }));
@@ -2309,7 +2399,7 @@ export default function App() {
           />
         )}
         <main className={`flex-1 transition-all duration-300 ease-in-out p-6 lg:p-12 ${!focusMode ? (isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72') : ''} flex flex-col h-screen overflow-hidden relative`}>
-          {!focusMode && <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} onShowProfile={() => setShowProfile(true)} user={currentUser} focusMode={focusMode} toggleFocusMode={() => setFocusMode(!focusMode)} searchQuery={searchQuery} setSearchQuery={setSearchQuery} theme={theme} toggleTheme={toggleTheme} onShowMusicPlayer={() => setShowMusicPlayer(true)} />}
+          {!focusMode && <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} onShowProfile={() => setShowProfile(true)} user={currentUser} focusMode={focusMode} toggleFocusMode={() => setFocusMode(!focusMode)} searchQuery={searchQuery} setSearchQuery={setSearchQuery} theme={theme} toggleTheme={toggleTheme} onShowMusicPlayer={() => setShowMusicPlayer(true)} onShowTemplates={() => setShowTemplates(true)} />}
           {focusMode && (
             <button
               onClick={() => setFocusMode(false)}
@@ -2341,6 +2431,17 @@ export default function App() {
         <YouTubeMusicPlayer
           onClose={() => setShowMusicPlayer(false)}
           energyLevel={state.energyLevel || 'Medium'}
+        />
+      )}
+      {showTemplates && (
+        <TaskTemplates
+          templates={state.taskTemplates}
+          projects={state.projects}
+          onCreateTemplate={createTemplate}
+          onUpdateTemplate={updateTemplate}
+          onDeleteTemplate={deleteTemplate}
+          onUseTemplate={useTemplate}
+          onClose={() => setShowTemplates(false)}
         />
       )}
       <style>{`
