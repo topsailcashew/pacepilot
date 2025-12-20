@@ -48,7 +48,8 @@ import {
   Printer,
   Sun,
   Moon,
-  Music
+  Music,
+  Mic
 } from 'lucide-react';
 import { EnergyLevel, Task, Project, DailyReport, AppState, CalendarEvent, RecurringTask, Subtask } from './types';
 import { ENERGY_LEVELS, CATEGORIES } from './constants';
@@ -63,6 +64,8 @@ import { ToastContainer, useToast } from './components/Toast';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
 import MobileBottomNav from './components/MobileBottomNav';
 import MusicPlayer from './components/MusicPlayer';
+import AIPilot from './components/AIPilot';
+import BrainDump from './components/BrainDump';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
@@ -155,10 +158,16 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen, toggleCollapse }: { isCollaps
                         key={item.path}
                         to={item.path}
                         onClick={() => setIsOpen(false)}
-                        className={`flex items-center gap-3 p-3.5 rounded-lg transition-all duration-200 group relative ${isActive ? 'bg-pilot-orange text-white' : 'text-white/40 hover:text-white/80 hover:bg-white/5'}`}
+                        className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} p-3.5 rounded-lg transition-all duration-200 group relative ${isActive ? 'bg-pilot-orange text-white' : 'text-white/40 hover:text-white/80 hover:bg-white/5'}`}
+                        title={isCollapsed ? item.label : undefined}
                       >
                         <Icon size={18} className={isActive ? 'text-white' : 'text-white/30 group-hover:text-white/50'} />
                         {!isCollapsed && <span className="text-sm font-bold">{item.label}</span>}
+                        {isCollapsed && (
+                          <span className="absolute left-full ml-4 px-3 py-1.5 bg-prussianblue border border-white/10 rounded-lg text-xs font-bold text-white whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity shadow-xl z-50">
+                            {item.label}
+                          </span>
+                        )}
                       </Link>
                     );
                   })}
@@ -168,18 +177,27 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen, toggleCollapse }: { isCollaps
           </div>
 
           {/* Collapse Toggle Button */}
-          <button
-            onClick={toggleCollapse}
-            className="hidden lg:flex mt-auto items-center justify-center gap-2 p-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 hover:text-white transition-all group"
-            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {isCollapsed ? <ChevronRight size={18} /> : (
-              <>
-                <ChevronLeft size={18} />
-                <span className="text-xs font-bold uppercase tracking-wider">Collapse</span>
-              </>
-            )}
-          </button>
+          <div className="hidden lg:block mt-auto pt-4 border-t border-white/5">
+            <button
+              onClick={toggleCollapse}
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} p-3 rounded-lg bg-pilot-orange/10 hover:bg-pilot-orange/20 border border-pilot-orange/20 text-pilot-orange hover:text-pilot-orange transition-all group relative`}
+              title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {isCollapsed ? (
+                <>
+                  <ChevronRight size={18} className="group-hover:scale-110 transition-transform" />
+                  <span className="absolute left-full ml-4 px-3 py-1.5 bg-prussianblue border border-white/10 rounded-lg text-xs font-bold text-white whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity shadow-xl z-50">
+                    Expand
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-xs font-bold uppercase tracking-wider">Collapse</span>
+                  <ChevronLeft size={18} className="group-hover:scale-110 transition-transform" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </aside>
     </>
@@ -330,6 +348,9 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing,
   const [isExpanded, setIsExpanded] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [isTracking, setIsTracking] = useState(false);
+  const [trackingStartTime, setTrackingStartTime] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
 
   const handleToggleComplete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -368,6 +389,36 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing,
     const updatedSubtasks = (task.subtasks || []).filter(st => st.id !== subtaskId);
     updateTask(task.id, { subtasks: updatedSubtasks });
   };
+
+  const handleStartTracking = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsTracking(true);
+    setTrackingStartTime(Date.now());
+    setElapsedTime(task.timeSpent || 0);
+  };
+
+  const handleStopTracking = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (trackingStartTime) {
+      const additionalMinutes = Math.floor((Date.now() - trackingStartTime) / 60000);
+      const totalMinutes = (task.timeSpent || 0) + additionalMinutes;
+      updateTask(task.id, { timeSpent: totalMinutes });
+      setElapsedTime(totalMinutes);
+    }
+    setIsTracking(false);
+    setTrackingStartTime(null);
+  };
+
+  // Update elapsed time while tracking
+  useEffect(() => {
+    if (isTracking && trackingStartTime) {
+      const interval = setInterval(() => {
+        const additionalMinutes = Math.floor((Date.now() - trackingStartTime) / 60000);
+        setElapsedTime((task.timeSpent || 0) + additionalMinutes);
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [isTracking, trackingStartTime, task.timeSpent]);
 
   const currentProject = projects.find(p => p.id === task.projectId);
 
@@ -429,6 +480,16 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing,
                   className="w-full bg-deepnavy border border-white/5 rounded-lg p-3 text-xs text-white/80 focus:outline-none h-24 resize-none placeholder:opacity-10"
                 />
               </div>
+              <div>
+                <label className={THEME.label}>Collaboration</label>
+                <input
+                  type="text"
+                  value={task.collaboration || ''}
+                  onChange={(e) => updateTask(task.id, { collaboration: e.target.value })}
+                  placeholder="WHO ARE YOU WORKING WITH..."
+                  className="w-full bg-deepnavy border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white/80 focus:outline-none placeholder:opacity-10"
+                />
+              </div>
             </div>
             <div className="space-y-4">
              <div>
@@ -441,6 +502,36 @@ const TaskItem = ({ task, projects, toggleTask, updateTask, onFocus, isFocusing,
               <label className={THEME.label}>Vibe Requirement</label>
               <div className="px-4 py-2.5 bg-deepnavy border border-white/5 rounded-lg text-xs font-bold text-white/60">
                 {task.energyRequired} INTENSITY
+              </div>
+            </div>
+            <div>
+              <label className={THEME.label}>Time Tracking</label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 px-4 py-2.5 bg-deepnavy border border-white/5 rounded-lg flex items-center justify-between">
+                  <span className="text-xs font-bold text-white/60">
+                    {elapsedTime > 0 ? `${elapsedTime} min` : 'No time logged'}
+                  </span>
+                  {isTracking && (
+                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  )}
+                </div>
+                {!isTracking ? (
+                  <button
+                    onClick={handleStartTracking}
+                    className="px-4 py-2.5 bg-pilot-orange/10 hover:bg-pilot-orange/20 border border-pilot-orange/20 rounded-lg text-xs font-bold text-pilot-orange transition-all flex items-center gap-2"
+                  >
+                    <Play size={12} />
+                    Start
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStopTracking}
+                    className="px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-xs font-bold text-red-400 transition-all flex items-center gap-2"
+                  >
+                    <X size={12} />
+                    Stop
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -541,6 +632,7 @@ const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, dupli
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportResult, setReportResult] = useState<string | null>(null);
+  const [showBrainDump, setShowBrainDump] = useState(false);
 
   const [energyFilter, setEnergyFilter] = useState<EnergyLevel | 'All'>('All');
 
@@ -586,6 +678,21 @@ const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, dupli
     };
     setState(prev => ({ ...prev, tasks: [newTask, ...prev.tasks] }));
     setIsAddingTask(false);
+  };
+
+  const handleBrainDumpTasks = (generatedTasks: Partial<Task>[]) => {
+    const newTasks = generatedTasks.map(task => ({
+      id: Math.random().toString(36).substr(2, 9),
+      title: task.title || 'Untitled Task',
+      description: task.description,
+      energyRequired: task.energyRequired || 'Medium',
+      isCompleted: false,
+      createdAt: new Date().toISOString(),
+      projectId: task.projectId,
+      dueDate: task.dueDate,
+    } as Task));
+
+    setState(prev => ({ ...prev, tasks: [...newTasks, ...prev.tasks] }));
   };
 
   return (
@@ -677,9 +784,17 @@ const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, dupli
           <div className="lg:col-span-8 space-y-3">
              <div className="flex items-center justify-between px-1 mb-2">
               <p className={THEME.label}>Mission Log</p>
-              <button onClick={() => setIsAddingTask(true)} className="text-[10px] font-black uppercase tracking-widest text-pilot-orange flex items-center gap-1.5 hover:text-white transition-colors">
-                <Plus size={14} /> New Entry
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowBrainDump(true)}
+                  className="text-[10px] font-black uppercase tracking-widest text-pilot-orange flex items-center gap-1.5 hover:text-white transition-colors"
+                >
+                  <Mic size={14} /> Brain Dump
+                </button>
+                <button onClick={() => setIsAddingTask(true)} className="text-[10px] font-black uppercase tracking-widest text-pilot-orange flex items-center gap-1.5 hover:text-white transition-colors">
+                  <Plus size={14} /> New Entry
+                </button>
+              </div>
             </div>
             {filteredTasks.length === 0 ? (
               <div className="text-center py-20 bg-white/[0.01] rounded-xl border border-dashed border-white/10">
@@ -766,6 +881,15 @@ const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, dupli
           <button type="submit" className={`${THEME.buttonPrimary} w-full py-4 text-xs font-black uppercase tracking-widest`}>AUTHORISE MISSION</button>
         </form>
       </Modal>
+
+      {showBrainDump && (
+        <BrainDump
+          onClose={() => setShowBrainDump(false)}
+          onTasksGenerated={handleBrainDumpTasks}
+          projects={state.projects}
+          mode="workday"
+        />
+      )}
     </div>
   );
 };
@@ -841,14 +965,15 @@ const RecurringTasksPage = ({ tasks, onToggle }: { tasks: RecurringTask[], onTog
 
 // --- Weekly Planner Page ---
 
-const WeeklyPlannerPage = ({ state, setState, toggleTask, updateTask }: { 
-  state: AppState; 
+const WeeklyPlannerPage = ({ state, setState, toggleTask, updateTask }: {
+  state: AppState;
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   toggleTask: (id: string) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
 }) => {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [isAddingTask, setIsAddingTask] = useState(false);
+  const [showBrainDump, setShowBrainDump] = useState(false);
 
   // Generate current week dates
   const weekDates = useMemo(() => {
@@ -872,7 +997,7 @@ const WeeklyPlannerPage = ({ state, setState, toggleTask, updateTask }: {
   const handleAddTaskToDay = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (selectedDay === null) return;
-    
+
     const formData = new FormData(e.currentTarget);
     const newTask: Task = {
       id: Math.random().toString(36).substr(2, 9),
@@ -887,6 +1012,21 @@ const WeeklyPlannerPage = ({ state, setState, toggleTask, updateTask }: {
     setIsAddingTask(false);
   };
 
+  const handleBrainDumpTasks = (generatedTasks: Partial<Task>[]) => {
+    const newTasks = generatedTasks.map(task => ({
+      id: Math.random().toString(36).substr(2, 9),
+      title: task.title || 'Untitled Task',
+      description: task.description,
+      energyRequired: task.energyRequired || 'Medium',
+      isCompleted: false,
+      createdAt: new Date().toISOString(),
+      projectId: task.projectId,
+      dueDate: task.dueDate,
+    } as Task));
+
+    setState(prev => ({ ...prev, tasks: [...newTasks, ...prev.tasks] }));
+  };
+
   return (
     <div className="animate-in fade-in duration-500 pb-12 space-y-10">
       <div className="flex items-center justify-between px-2">
@@ -895,6 +1035,12 @@ const WeeklyPlannerPage = ({ state, setState, toggleTask, updateTask }: {
           <p className="text-[10px] text-white/30 font-bold uppercase tracking-[0.2em] mt-2">SECTOR LOGISTICS & TEMPORAL MAPPING</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowBrainDump(true)}
+            className="px-6 py-3 bg-pilot-orange hover:bg-pilot-orange/90 text-white rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
+          >
+            <Mic size={14} /> Brain Dump
+          </button>
           <div className="bg-white/5 border border-white/10 p-1.5 rounded-lg flex gap-1">
              <button className="p-2 text-white/20 hover:text-white transition-colors"><ChevronLeft size={16}/></button>
              <span className="px-4 py-2 text-[10px] font-black text-white/60 uppercase tracking-widest flex items-center">Current Sequence</span>
@@ -1008,6 +1154,15 @@ const WeeklyPlannerPage = ({ state, setState, toggleTask, updateTask }: {
           <button type="submit" className={`${THEME.buttonPrimary} w-full py-4 text-xs font-black uppercase tracking-widest`}>LOCK MISSION TO TIMELINE</button>
         </form>
       </Modal>
+
+      {showBrainDump && (
+        <BrainDump
+          onClose={() => setShowBrainDump(false)}
+          onTasksGenerated={handleBrainDumpTasks}
+          projects={state.projects}
+          mode="planner"
+        />
+      )}
     </div>
   );
 };
@@ -1020,10 +1175,16 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [flowInsights, setFlowInsights] = useState<string[]>([]);
 
-  const selectedReport = useMemo(() => 
+  const selectedReport = useMemo(() =>
     reports.find(r => r.date === selectedReportDate),
     [reports, selectedReportDate]
   );
+
+  // Get tasks completed today
+  const todayTasks = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return tasks.filter(t => t.isCompleted && t.createdAt.startsWith(today));
+  }, [tasks]);
 
   const weeklyChartData = [
     { day: 'SUN', v: 4 }, { day: 'MON', v: 3 }, { day: 'TUE', v: 7 }, { day: 'WED', v: 12 }, { day: 'THU', v: 10 }, { day: 'FRI', v: 6 }, { day: 'SAT', v: 0 },
@@ -1049,27 +1210,10 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
 
   return (
     <div className="animate-in fade-in duration-500 pb-12 space-y-12 relative print-container">
-      <button
-        onClick={() => window.print()}
-        className="no-print fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-pilot-orange hover:bg-pilot-orange/90 text-white font-bold rounded-lg shadow-2xl transition-all hover:scale-105 active:scale-95"
-      >
-        <Printer size={20} />
-        <span className="hidden md:inline">Print Report</span>
-      </button>
-
       <section className={THEME.card}>
-        <div className="flex items-center justify-between mb-10">
-          <div className="flex items-center gap-3">
-            <TrendingUp size={24} className="text-pilot-orange" />
-            <h3 className="text-xl font-black text-white uppercase tracking-widest">PRODUCTIVITY OVERVIEW</h3>
-          </div>
-          <button
-            onClick={() => window.print()}
-            className="no-print flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white/70 hover:text-white transition-all"
-          >
-            <Printer size={16} />
-            <span className="text-xs font-bold uppercase tracking-wider">Print</span>
-          </button>
+        <div className="flex items-center gap-3 mb-10">
+          <TrendingUp size={24} className="text-pilot-orange" />
+          <h3 className="text-xl font-black text-white uppercase tracking-widest">PRODUCTIVITY OVERVIEW</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
@@ -1084,6 +1228,79 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Today's Tasks Table */}
+      <section className={THEME.card}>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 size={24} className="text-pilot-orange" />
+            <h3 className="text-xl font-black text-white uppercase tracking-widest">Today's Completed Tasks</h3>
+          </div>
+          <div className="px-4 py-2 bg-pilot-orange/10 border border-pilot-orange/20 rounded-lg">
+            <span className="text-xs font-black text-pilot-orange uppercase tracking-wider">{todayTasks.length} Tasks</span>
+          </div>
+        </div>
+
+        {todayTasks.length > 0 ? (
+          <div className="bg-white/[0.01] border border-white/5 rounded-xl overflow-hidden">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-[10px] font-black uppercase text-white/20 border-b border-white/5 bg-white/[0.02]">
+                  <th className="px-6 py-4">Task</th>
+                  <th className="px-6 py-4">Project</th>
+                  <th className="px-6 py-4">Collaboration</th>
+                  <th className="px-6 py-4">Energy</th>
+                  <th className="px-6 py-4">Subtasks</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {todayTasks.map((task) => (
+                  <tr key={task.id} className="group hover:bg-white/[0.02] transition-colors">
+                    <td className="px-6 py-4">
+                      <p className="text-sm font-bold text-white/80 group-hover:text-pilot-orange transition-colors">{task.title}</p>
+                      {task.description && (
+                        <p className="text-xs text-white/40 mt-1 line-clamp-1">{task.description}</p>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs font-bold text-white/50">{task.projectId || '-'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <Users size={12} className="text-white/20" />
+                        <span className="text-xs font-bold text-white/50">{task.collaboration || 'Solo'}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`text-xs font-black px-3 py-1 rounded-full ${
+                        task.energyRequired === 'High' ? 'bg-red-500/20 text-red-400' :
+                        task.energyRequired === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-green-500/20 text-green-400'
+                      }`}>
+                        {task.energyRequired}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {task.subtasks && task.subtasks.length > 0 ? (
+                        <span className="text-xs font-bold text-white/40">
+                          {task.subtasks.filter(st => st.isCompleted).length}/{task.subtasks.length}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-white/20">-</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-16 bg-white/[0.01] border border-white/5 rounded-xl">
+            <CheckCircle2 size={40} className="mx-auto mb-4 text-white/10" />
+            <p className="text-sm font-bold text-white/30 uppercase tracking-wider">No tasks completed today yet</p>
+          </div>
+        )}
       </section>
 
       <section className="space-y-4">
@@ -2033,9 +2250,16 @@ export default function App() {
         {!focusMode && <MobileBottomNav />}
       </div>
       {showMusicPlayer && <MusicPlayer onClose={() => setShowMusicPlayer(false)} />}
+      <AIPilot
+        taskCount={state.tasks.length}
+        completedToday={state.tasks.filter(t => t.isCompleted && t.createdAt.startsWith(new Date().toISOString().split('T')[0])).length}
+        energyLevel={state.energyLevel || 'Medium'}
+      />
       <style>{`
         @keyframes bounce-short { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
         .animate-bounce-short { animation: bounce-short 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+        .animate-float { animation: float 3s ease-in-out infinite; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         select option { background: #11122C; color: white; font-weight: bold; }
         .snap-x { scroll-snap-type: x mandatory; }
@@ -2052,7 +2276,7 @@ export default function App() {
 
         html.light .bg-prussianblue {
           background: white !important;
-          border-color: rgba(0,0,0,0.1) !important;
+          border-color: rgba(0,0,0,0.15) !important;
         }
 
         html.light .bg-deepnavy {
@@ -2064,39 +2288,55 @@ export default function App() {
         }
 
         html.light .text-white\\/70 {
-          color: #4b5563 !important;
+          color: #374151 !important;
         }
 
         html.light .text-white\\/40 {
-          color: #9ca3af !important;
+          color: #6b7280 !important;
         }
 
         html.light .text-white\\/30 {
-          color: #d1d5db !important;
+          color: #9ca3af !important;
         }
 
         html.light .text-white\\/20 {
+          color: #d1d5db !important;
+        }
+
+        html.light .text-white\\/10 {
           color: #e5e7eb !important;
         }
 
         html.light .border-white\\/10 {
-          border-color: rgba(0,0,0,0.1) !important;
+          border-color: rgba(0,0,0,0.15) !important;
         }
 
         html.light .border-white\\/5 {
-          border-color: rgba(0,0,0,0.05) !important;
+          border-color: rgba(0,0,0,0.1) !important;
         }
 
         html.light .bg-white\\/5 {
-          background: rgba(0,0,0,0.03) !important;
+          background: rgba(0,0,0,0.04) !important;
         }
 
         html.light .bg-white\\/10 {
-          background: rgba(0,0,0,0.05) !important;
+          background: rgba(0,0,0,0.06) !important;
         }
 
         html.light .bg-white\\/\\[0.03\\] {
+          background: rgba(0,0,0,0.03) !important;
+        }
+
+        html.light .bg-white\\/\\[0.02\\] {
           background: rgba(0,0,0,0.02) !important;
+        }
+
+        html.light .bg-white\\/\\[0.01\\] {
+          background: rgba(0,0,0,0.01) !important;
+        }
+
+        html.light .bg-white\\/\\[0.04\\] {
+          background: rgba(0,0,0,0.04) !important;
         }
 
         html.light select option {
@@ -2105,19 +2345,31 @@ export default function App() {
         }
 
         html.light ::-webkit-scrollbar-thumb {
-          background: rgba(0,0,0,0.1);
+          background: rgba(0,0,0,0.15);
         }
 
         html.light ::-webkit-scrollbar-thumb:hover {
-          background: rgba(243,115,36,0.4);
+          background: rgba(243,115,36,0.5);
         }
 
         html.light .hover\\:bg-white\\/5:hover {
-          background: rgba(0,0,0,0.05) !important;
+          background: rgba(0,0,0,0.06) !important;
+        }
+
+        html.light .hover\\:bg-white\\/10:hover {
+          background: rgba(0,0,0,0.08) !important;
         }
 
         html.light .hover\\:text-white:hover {
           color: #111827 !important;
+        }
+
+        html.light input::placeholder {
+          color: rgba(0,0,0,0.3) !important;
+        }
+
+        html.light textarea::placeholder {
+          color: rgba(0,0,0,0.3) !important;
         }
       `}</style>
     </HashRouter>
