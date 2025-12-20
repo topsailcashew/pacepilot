@@ -68,6 +68,7 @@ import YouTubeMusicPlayer from './components/YouTubeMusicPlayer';
 import AIPilot from './components/AIPilot';
 import BrainDump from './components/BrainDump';
 import TaskTemplates from './components/TaskTemplates';
+import SwipeableTask from './components/SwipeableTask';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
@@ -845,17 +846,24 @@ const WorkdayPage = ({ state, setState, toggleTask, updateTask, setEnergy, dupli
               </div>
             ) : (
               filteredTasks.map((task) => (
-                <TaskItem
+                <SwipeableTask
                   key={task.id}
-                  task={task}
-                  projects={state.projects}
-                  toggleTask={toggleTask}
-                  updateTask={updateTask}
-                  onFocus={(t) => setActiveTaskId(t.id)}
-                  isFocusing={activeTaskId === task.id}
-                  onDuplicate={duplicateTask}
-                  onDelete={deleteTask}
-                />
+                  onComplete={() => toggleTask(task.id)}
+                  onDelete={() => deleteTask(task.id)}
+                  onDuplicate={() => duplicateTask(task.id)}
+                  isCompleted={task.isCompleted}
+                >
+                  <TaskItem
+                    task={task}
+                    projects={state.projects}
+                    toggleTask={toggleTask}
+                    updateTask={updateTask}
+                    onFocus={(t) => setActiveTaskId(t.id)}
+                    isFocusing={activeTaskId === task.id}
+                    onDuplicate={duplicateTask}
+                    onDelete={deleteTask}
+                  />
+                </SwipeableTask>
               ))
             )}
           </div>
@@ -1772,17 +1780,24 @@ const ProjectsPage = ({ state, setState, toggleTask, updateTask, addProject, dup
                 </div>
               ) : (
                 projectTasks.map(task => (
-                  <TaskItem
+                  <SwipeableTask
                     key={task.id}
-                    task={task}
-                    projects={state.projects}
-                    toggleTask={toggleTask}
-                    updateTask={updateTask}
-                    onFocus={() => {}}
-                    isFocusing={false}
-                    onDuplicate={duplicateTask}
-                    onDelete={deleteTask}
-                  />
+                    onComplete={() => toggleTask(task.id)}
+                    onDelete={() => deleteTask(task.id)}
+                    onDuplicate={() => duplicateTask(task.id)}
+                    isCompleted={task.isCompleted}
+                  >
+                    <TaskItem
+                      task={task}
+                      projects={state.projects}
+                      toggleTask={toggleTask}
+                      updateTask={updateTask}
+                      onFocus={() => {}}
+                      isFocusing={false}
+                      onDuplicate={duplicateTask}
+                      onDelete={deleteTask}
+                    />
+                  </SwipeableTask>
                 ))
               )}
             </div>
