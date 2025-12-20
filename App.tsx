@@ -1219,6 +1219,51 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
     return tasks.filter(t => t.isCompleted && t.createdAt.startsWith(today));
   }, [tasks]);
 
+  // Calculate dynamic stats
+  const stats = useMemo(() => {
+    // Total missions completed
+    const totalCompleted = tasks.filter(t => t.isCompleted).length;
+
+    // Energy peak - most common energy level in completed tasks
+    const energyCount: Record<EnergyLevel, number> = { High: 0, Medium: 0, Low: 0 };
+    tasks.filter(t => t.isCompleted).forEach(t => {
+      energyCount[t.energyRequired]++;
+    });
+    const energyPeak = Object.entries(energyCount).reduce((a, b) =>
+      energyCount[a[0] as EnergyLevel] > energyCount[b[0] as EnergyLevel] ? a : b
+    )[0] as EnergyLevel;
+
+    // Alignment - completion rate
+    const alignment = tasks.length > 0 ? Math.round((totalCompleted / tasks.length) * 100) : 0;
+
+    // Pilot streak - consecutive days with completed tasks
+    let streak = 0;
+    const today = new Date();
+    const completedDates = new Set(
+      tasks.filter(t => t.isCompleted).map(t => t.createdAt.split('T')[0])
+    );
+
+    for (let i = 0; i < 365; i++) {
+      const checkDate = new Date(today);
+      checkDate.setDate(today.getDate() - i);
+      const dateStr = checkDate.toISOString().split('T')[0];
+
+      if (completedDates.has(dateStr)) {
+        streak++;
+      } else if (i > 0) {
+        // Only break if it's not today (allow for current day with no tasks yet)
+        break;
+      }
+    }
+
+    return {
+      totalCompleted,
+      energyPeak,
+      alignment,
+      streak
+    };
+  }, [tasks]);
+
   const weeklyChartData = [
     { day: 'SUN', v: 4 }, { day: 'MON', v: 3 }, { day: 'TUE', v: 7 }, { day: 'WED', v: 12 }, { day: 'THU', v: 10 }, { day: 'FRI', v: 6 }, { day: 'SAT', v: 0 },
   ];
@@ -1250,10 +1295,10 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { l: 'Missions Completed', v: '158', i: CheckCircle2 },
-            { l: 'Energy Peak', v: 'High', i: Zap },
-            { l: 'Alignment', v: '94%', i: Target },
-            { l: 'Pilot Streak', v: '12 Days', i: Clock },
+            { l: 'Missions Completed', v: stats.totalCompleted.toString(), i: CheckCircle2 },
+            { l: 'Energy Peak', v: stats.energyPeak, i: Zap },
+            { l: 'Achievement Rate', v: `${stats.alignment}%`, i: Target },
+            { l: 'Pilot Streak', v: `${stats.streak} Day${stats.streak !== 1 ? 's' : ''}`, i: Clock },
           ].map((s, idx) => (
             <div key={idx} className="bg-white/[0.02] border border-white/5 rounded-xl p-6 transition-all hover:bg-white/[0.04] group cursor-default">
               <p className={THEME.label}>{s.l}</p>
