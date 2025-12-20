@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2 } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, AlertCircle } from 'lucide-react';
 import { EnergyLevel } from '../types';
 
 interface YouTubeMusicPlayerProps {
@@ -20,131 +20,287 @@ const YouTubeMusicPlayer: React.FC<YouTubeMusicPlayerProps> = ({ onClose, energy
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(70);
   const [isExpanded, setIsExpanded] = useState(false);
-  const playerRef = useRef<any>(null);
   const [playerReady, setPlayerReady] = useState(false);
+  const [apiLoaded, setApiLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  const playerRef = useRef<any>(null);
+  const playerDivRef = useRef<HTMLDivElement>(null);
+  const initAttempted = useRef(false);
+
+  // Handle next track
+  const handleNext = useCallback(() => {
+    console.log('Next track');
+    setCurrentIndex((prev) => (prev + 1) % MUSIC_TRACKS.length);
+  }, []);
+
+  // Handle previous track
+  const handlePrevious = useCallback(() => {
+    console.log('Previous track');
+    setCurrentIndex((prev) => (prev - 1 + MUSIC_TRACKS.length) % MUSIC_TRACKS.length);
+  }, []);
+
+  // Initialize YouTube IFrame API
   useEffect(() => {
-    // Load YouTube IFrame API
-    if (!(window as any).YT) {
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    console.log('Loading YouTube IFrame API...');
+
+    // Check if API is already loaded
+    if ((window as any).YT && (window as any).YT.Player) {
+      console.log('YouTube API already loaded');
+      setApiLoaded(true);
+      setIsLoading(false);
+      return;
     }
 
-    // Initialize player when API is ready
-    (window as any).onYouTubeIframeAPIReady = () => {
-      if (!playerRef.current) {
-        playerRef.current = new (window as any).YT.Player('youtube-player-hidden', {
-          height: '0',
-          width: '0',
-          videoId: MUSIC_TRACKS[currentIndex].id,
-          playerVars: {
-            autoplay: 0,
-            controls: 0,
-            modestbranding: 1,
-            rel: 0,
-            showinfo: 0,
-          },
-          events: {
-            onReady: (event: any) => {
-              console.log('YouTube player ready');
-              setPlayerReady(true);
-              event.target.setVolume(volume);
-            },
-            onStateChange: (event: any) => {
-              if (event.data === (window as any).YT.PlayerState.ENDED) {
-                handleNext();
-              }
-              if (event.data === (window as any).YT.PlayerState.PLAYING) {
-                setIsPlaying(true);
-              }
-              if (event.data === (window as any).YT.PlayerState.PAUSED) {
-                setIsPlaying(false);
-              }
-            },
-          },
-        });
-      }
+    // Check if script is already in the document
+    const existingScript = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
+    if (existingScript) {
+      console.log('YouTube API script already added, waiting for load...');
+      // Wait for it to load
+      const checkInterval = setInterval(() => {
+        if ((window as any).YT && (window as any).YT.Player) {
+          console.log('YouTube API loaded');
+          setApiLoaded(true);
+          setIsLoading(false);
+          clearInterval(checkInterval);
+        }
+      }, 100);
+
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        if (!apiLoaded) {
+          setError('YouTube API failed to load. Please refresh the page.');
+          setIsLoading(false);
+        }
+      }, 10000); // 10 second timeout
+
+      return () => clearInterval(checkInterval);
+    }
+
+    // Load the API script
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    tag.async = true;
+    tag.onerror = () => {
+      console.error('Failed to load YouTube IFrame API script');
+      setError('Failed to load YouTube player. Check your internet connection.');
+      setIsLoading(false);
     };
 
-    // If YT is already loaded
-    if ((window as any).YT && (window as any).YT.Player) {
-      (window as any).onYouTubeIframeAPIReady();
+    const firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+
+    // Set up callback for when API is ready
+    (window as any).onYouTubeIframeAPIReady = () => {
+      console.log('YouTube IFrame API Ready');
+      setApiLoaded(true);
+      setIsLoading(false);
+    };
+
+    // Timeout fallback
+    const timeout = setTimeout(() => {
+      if (!apiLoaded) {
+        console.error('YouTube API load timeout');
+        setError('YouTube API load timeout. Please refresh the page.');
+        setIsLoading(false);
+      }
+    }, 10000);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [apiLoaded]);
+
+  // Initialize player when API is loaded
+  useEffect(() => {
+    if (!apiLoaded || !playerDivRef.current || initAttempted.current) {
+      return;
+    }
+
+    initAttempted.current = true;
+    console.log('Initializing YouTube player...');
+
+    try {
+      playerRef.current = new (window as any).YT.Player(playerDivRef.current, {
+        height: '1',
+        width: '1',
+        videoId: MUSIC_TRACKS[currentIndex].id,
+        playerVars: {
+          autoplay: 0,
+          controls: 0,
+          modestbranding: 1,
+          rel: 0,
+          showinfo: 0,
+          fs: 0,
+          playsinline: 1,
+        },
+        events: {
+          onReady: (event: any) => {
+            console.log('Player ready!');
+            setPlayerReady(true);
+            setError(null);
+            event.target.setVolume(volume);
+          },
+          onStateChange: (event: any) => {
+            console.log('Player state changed:', event.data);
+            const playerState = (window as any).YT.PlayerState;
+
+            if (event.data === playerState.ENDED) {
+              console.log('Track ended, playing next');
+              handleNext();
+            } else if (event.data === playerState.PLAYING) {
+              setIsPlaying(true);
+            } else if (event.data === playerState.PAUSED) {
+              setIsPlaying(false);
+            }
+          },
+          onError: (event: any) => {
+            console.error('YouTube player error:', event.data);
+            let errorMessage = 'Failed to play video';
+            switch (event.data) {
+              case 2:
+                errorMessage = 'Invalid video ID';
+                break;
+              case 5:
+                errorMessage = 'HTML5 player error';
+                break;
+              case 100:
+                errorMessage = 'Video not found';
+                break;
+              case 101:
+              case 150:
+                errorMessage = 'Video not allowed to be embedded';
+                break;
+            }
+            setError(errorMessage);
+            setIsPlaying(false);
+          },
+        },
+      });
+    } catch (err) {
+      console.error('Error creating YouTube player:', err);
+      setError('Failed to create player. Please try again.');
     }
 
     return () => {
-      if (playerRef.current && playerRef.current.destroy) {
-        playerRef.current.destroy();
-        playerRef.current = null;
+      if (playerRef.current && typeof playerRef.current.destroy === 'function') {
+        try {
+          playerRef.current.destroy();
+        } catch (err) {
+          console.error('Error destroying player:', err);
+        }
       }
     };
-  }, []);
+  }, [apiLoaded, volume, handleNext, currentIndex]);
 
+  // Load new video when index changes
   useEffect(() => {
-    // Load new video when index changes
-    if (playerRef.current && playerRef.current.loadVideoById && playerReady) {
-      playerRef.current.loadVideoById(MUSIC_TRACKS[currentIndex].id);
-      if (isPlaying) {
+    if (!playerRef.current || !playerReady) return;
+
+    console.log('Loading track:', MUSIC_TRACKS[currentIndex].title);
+
+    try {
+      const wasPlaying = isPlaying;
+      playerRef.current.loadVideoById({
+        videoId: MUSIC_TRACKS[currentIndex].id,
+        startSeconds: 0,
+      });
+
+      if (wasPlaying) {
+        // Wait a bit for the video to load before playing
         setTimeout(() => {
-          playerRef.current.playVideo();
-        }, 100);
+          if (playerRef.current && typeof playerRef.current.playVideo === 'function') {
+            playerRef.current.playVideo();
+          }
+        }, 500);
       }
+    } catch (err) {
+      console.error('Error loading video:', err);
+      setError('Failed to load track');
     }
   }, [currentIndex, playerReady]);
 
-  const handlePlayPause = () => {
+  const handlePlayPause = useCallback(() => {
+    if (!playerRef.current || !playerReady) {
+      console.log('Player not ready');
+      return;
+    }
+
+    console.log('Play/Pause clicked, current state:', isPlaying);
+
+    try {
+      if (isPlaying) {
+        playerRef.current.pauseVideo();
+      } else {
+        playerRef.current.playVideo();
+      }
+    } catch (err) {
+      console.error('Error toggling playback:', err);
+      setError('Playback error. Please try again.');
+    }
+  }, [playerReady, isPlaying]);
+
+  const handleMute = useCallback(() => {
     if (!playerRef.current || !playerReady) return;
 
-    if (isPlaying) {
-      playerRef.current.pauseVideo();
-      setIsPlaying(false);
-    } else {
-      playerRef.current.playVideo();
-      setIsPlaying(true);
+    console.log('Mute toggled');
+
+    try {
+      if (isMuted) {
+        playerRef.current.unMute();
+        playerRef.current.setVolume(volume);
+      } else {
+        playerRef.current.mute();
+      }
+      setIsMuted(!isMuted);
+    } catch (err) {
+      console.error('Error toggling mute:', err);
     }
-  };
+  }, [playerReady, isMuted, volume]);
 
-  const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % MUSIC_TRACKS.length);
-  };
-
-  const handlePrevious = () => {
-    setCurrentIndex((prev) => (prev - 1 + MUSIC_TRACKS.length) % MUSIC_TRACKS.length);
-  };
-
-  const handleMute = () => {
+  const handleVolumeChange = useCallback((newVolume: number) => {
     if (!playerRef.current || !playerReady) return;
 
-    if (isMuted) {
-      playerRef.current.unMute();
-      playerRef.current.setVolume(volume);
-    } else {
-      playerRef.current.mute();
+    console.log('Volume changed to:', newVolume);
+
+    try {
+      setVolume(newVolume);
+      playerRef.current.setVolume(newVolume);
+
+      if (newVolume === 0) {
+        setIsMuted(true);
+      } else if (isMuted) {
+        setIsMuted(false);
+        playerRef.current.unMute();
+      }
+    } catch (err) {
+      console.error('Error changing volume:', err);
     }
-    setIsMuted(!isMuted);
-  };
+  }, [playerReady, isMuted]);
 
-  const handleVolumeChange = (newVolume: number) => {
-    if (!playerRef.current || !playerReady) return;
-
-    setVolume(newVolume);
-    playerRef.current.setVolume(newVolume);
-
-    if (newVolume === 0) {
-      setIsMuted(true);
-    } else if (isMuted) {
-      setIsMuted(false);
-      playerRef.current.unMute();
-    }
-  };
+  const handleTrackSelect = useCallback((index: number) => {
+    console.log('Track selected:', index);
+    setCurrentIndex(index);
+  }, []);
 
   const currentTrack = MUSIC_TRACKS[currentIndex];
 
   return (
     <>
-      {/* Hidden YouTube player */}
-      <div id="youtube-player-hidden" style={{ display: 'none' }} />
+      {/* Hidden YouTube player - MUST render before initialization */}
+      <div
+        ref={playerDivRef}
+        style={{
+          position: 'absolute',
+          top: '-9999px',
+          left: '-9999px',
+          width: '1px',
+          height: '1px',
+          opacity: 0,
+          pointerEvents: 'none'
+        }}
+      />
 
       <div
         className={`fixed ${
@@ -179,13 +335,33 @@ const YouTubeMusicPlayer: React.FC<YouTubeMusicPlayerProps> = ({ onClose, energy
               </div>
             </div>
 
+            {/* Error or Loading State */}
+            {(isLoading || error) && (
+              <div className="mb-6 p-4 bg-white/5 border border-white/10 rounded-xl">
+                {isLoading ? (
+                  <div className="flex items-center gap-3 text-white/60">
+                    <div className="animate-spin">⚙️</div>
+                    <p className="text-sm">Loading YouTube player...</p>
+                  </div>
+                ) : error ? (
+                  <div className="flex items-center gap-3 text-red-400">
+                    <AlertCircle size={18} />
+                    <p className="text-sm">{error}</p>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
             {/* Now Playing */}
             <div className="mb-8 text-center">
               <div className="w-32 h-32 mx-auto mb-6 bg-gradient-to-br from-pilot-orange to-pilot-orange/70 rounded-2xl flex items-center justify-center shadow-2xl">
-                <span className="text-6xl">🎵</span>
+                <span className="text-6xl">{isPlaying ? '🎵' : '⏸️'}</span>
               </div>
               <h3 className="text-2xl font-bold text-white mb-2">{currentTrack.title}</h3>
               <p className="text-sm text-white/40">{currentTrack.genre}</p>
+              {playerReady && (
+                <p className="text-xs text-green-400 mt-2">● Ready</p>
+              )}
             </div>
 
             {/* Controls */}
@@ -194,13 +370,14 @@ const YouTubeMusicPlayer: React.FC<YouTubeMusicPlayerProps> = ({ onClose, energy
               <div className="flex items-center justify-center gap-6">
                 <button
                   onClick={handlePrevious}
-                  className="p-4 bg-white/5 hover:bg-white/10 rounded-full transition-all hover:scale-110 active:scale-95"
+                  disabled={!playerReady}
+                  className="p-4 bg-white/5 hover:bg-white/10 rounded-full transition-all hover:scale-110 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <SkipBack size={24} className="text-white/60" />
                 </button>
                 <button
                   onClick={handlePlayPause}
-                  disabled={!playerReady}
+                  disabled={!playerReady || isLoading}
                   className="p-8 bg-pilot-orange hover:bg-pilot-orange/90 rounded-full shadow-2xl shadow-pilot-orange/30 transition-all hover:scale-110 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isPlaying ? (
@@ -211,7 +388,8 @@ const YouTubeMusicPlayer: React.FC<YouTubeMusicPlayerProps> = ({ onClose, energy
                 </button>
                 <button
                   onClick={handleNext}
-                  className="p-4 bg-white/5 hover:bg-white/10 rounded-full transition-all hover:scale-110 active:scale-95"
+                  disabled={!playerReady}
+                  className="p-4 bg-white/5 hover:bg-white/10 rounded-full transition-all hover:scale-110 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <SkipForward size={24} className="text-white/60" />
                 </button>
@@ -219,7 +397,7 @@ const YouTubeMusicPlayer: React.FC<YouTubeMusicPlayerProps> = ({ onClose, energy
 
               {/* Volume Control */}
               <div className="flex items-center gap-4 px-8">
-                <button onClick={handleMute} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                <button onClick={handleMute} disabled={!playerReady} className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-30">
                   {isMuted || volume === 0 ? (
                     <VolumeX size={20} className="text-white/60" />
                   ) : (
@@ -232,7 +410,8 @@ const YouTubeMusicPlayer: React.FC<YouTubeMusicPlayerProps> = ({ onClose, energy
                   max="100"
                   value={volume}
                   onChange={(e) => handleVolumeChange(Number(e.target.value))}
-                  className="flex-1 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                  disabled={!playerReady}
+                  className="flex-1 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer disabled:opacity-30"
                   style={{
                     background: `linear-gradient(to right, rgb(243, 115, 36) 0%, rgb(243, 115, 36) ${volume}%, rgba(255,255,255,0.1) ${volume}%, rgba(255,255,255,0.1) 100%)`
                   }}
@@ -249,15 +428,21 @@ const YouTubeMusicPlayer: React.FC<YouTubeMusicPlayerProps> = ({ onClose, energy
                   {MUSIC_TRACKS.map((track, idx) => (
                     <button
                       key={idx}
-                      onClick={() => setCurrentIndex(idx)}
-                      className={`w-full p-4 rounded-lg text-left transition-all ${
+                      onClick={() => handleTrackSelect(idx)}
+                      disabled={!playerReady}
+                      className={`w-full p-4 rounded-lg text-left transition-all disabled:opacity-30 ${
                         idx === currentIndex
                           ? 'bg-pilot-orange/10 border border-pilot-orange/20'
                           : 'bg-white/5 hover:bg-white/10 border border-transparent'
                       }`}
                     >
-                      <p className="text-sm font-bold text-white/80">{track.title}</p>
-                      <p className="text-xs text-white/40 mt-1">{track.genre}</p>
+                      <div className="flex items-center gap-3">
+                        {idx === currentIndex && isPlaying && <span className="text-pilot-orange">♪</span>}
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-white/80">{track.title}</p>
+                          <p className="text-xs text-white/40 mt-1">{track.genre}</p>
+                        </div>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -269,7 +454,10 @@ const YouTubeMusicPlayer: React.FC<YouTubeMusicPlayerProps> = ({ onClose, energy
           <div className="bg-prussianblue border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
             {/* Album Art */}
             <div className="relative h-32 bg-gradient-to-br from-pilot-orange/20 to-deepnavy flex items-center justify-center">
-              <span className="text-5xl">🎵</span>
+              <span className="text-5xl">{isPlaying ? '🎵' : '⏸️'}</span>
+              {playerReady && (
+                <div className="absolute top-2 right-2 w-2 h-2 bg-green-400 rounded-full"></div>
+              )}
             </div>
 
             {/* Controls */}
@@ -295,17 +483,25 @@ const YouTubeMusicPlayer: React.FC<YouTubeMusicPlayerProps> = ({ onClose, energy
                 </div>
               </div>
 
+              {/* Error State */}
+              {error && (
+                <div className="p-2 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-400">
+                  {error}
+                </div>
+              )}
+
               {/* Playback Controls */}
               <div className="flex items-center justify-center gap-3">
                 <button
                   onClick={handlePrevious}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  disabled={!playerReady}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-30"
                 >
                   <SkipBack size={16} className="text-white/60" />
                 </button>
                 <button
                   onClick={handlePlayPause}
-                  disabled={!playerReady}
+                  disabled={!playerReady || isLoading}
                   className="p-3 bg-pilot-orange hover:bg-pilot-orange/90 rounded-full shadow-lg shadow-pilot-orange/30 transition-all hover:scale-110 active:scale-95 disabled:opacity-50"
                 >
                   {isPlaying ? (
@@ -316,7 +512,8 @@ const YouTubeMusicPlayer: React.FC<YouTubeMusicPlayerProps> = ({ onClose, energy
                 </button>
                 <button
                   onClick={handleNext}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  disabled={!playerReady}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-30"
                 >
                   <SkipForward size={16} className="text-white/60" />
                 </button>
@@ -324,7 +521,7 @@ const YouTubeMusicPlayer: React.FC<YouTubeMusicPlayerProps> = ({ onClose, energy
 
               {/* Volume Control */}
               <div className="flex items-center gap-3">
-                <button onClick={handleMute} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                <button onClick={handleMute} disabled={!playerReady} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-30">
                   {isMuted || volume === 0 ? (
                     <VolumeX size={14} className="text-white/40" />
                   ) : (
@@ -337,7 +534,8 @@ const YouTubeMusicPlayer: React.FC<YouTubeMusicPlayerProps> = ({ onClose, energy
                   max="100"
                   value={volume}
                   onChange={(e) => handleVolumeChange(Number(e.target.value))}
-                  className="flex-1 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                  disabled={!playerReady}
+                  className="flex-1 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer disabled:opacity-30"
                   style={{
                     background: `linear-gradient(to right, rgb(243, 115, 36) 0%, rgb(243, 115, 36) ${volume}%, rgba(255,255,255,0.1) ${volume}%, rgba(255,255,255,0.1) 100%)`
                   }}
