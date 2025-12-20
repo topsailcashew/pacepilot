@@ -105,7 +105,23 @@ interface WorkdayPageProps {
 
 // --- Sidebar Component ---
 
-const Sidebar = ({ isCollapsed, isOpen, setIsOpen, toggleCollapse }: { isCollapsed: boolean; isOpen: boolean; setIsOpen: (v: boolean) => void; toggleCollapse: () => void }) => {
+const Sidebar = ({
+  isCollapsed,
+  isOpen,
+  setIsOpen,
+  toggleCollapse,
+  taskCount,
+  completedToday,
+  energyLevel
+}: {
+  isCollapsed: boolean;
+  isOpen: boolean;
+  setIsOpen: (v: boolean) => void;
+  toggleCollapse: () => void;
+  taskCount: number;
+  completedToday: number;
+  energyLevel: string;
+}) => {
   const location = useLocation();
   
   const sections = [
@@ -176,8 +192,41 @@ const Sidebar = ({ isCollapsed, isOpen, setIsOpen, toggleCollapse }: { isCollaps
             ))}
           </div>
 
+          {/* AI Pilot Assistant */}
+          <div className="mt-auto pt-4 border-t border-white/5">
+            {isCollapsed ? (
+              <div className="flex justify-center p-3 mb-4 group relative">
+                <div className="w-10 h-10 bg-gradient-to-br from-pilot-orange to-pilot-orange/70 rounded-full flex items-center justify-center shadow-lg">
+                  <span className="text-lg">✈️</span>
+                </div>
+                <div className="absolute left-full ml-4 px-3 py-2 bg-prussianblue border border-white/10 rounded-lg text-xs font-bold text-white/80 whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity shadow-xl z-50 max-w-xs">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-pilot-orange">AI Pilot</span>
+                  </div>
+                  <p className="text-[10px] text-white/60">
+                    {taskCount} tasks • {completedToday} done today
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-4 p-3 bg-white/[0.02] border border-white/5 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 bg-gradient-to-br from-pilot-orange to-pilot-orange/70 rounded-full flex items-center justify-center">
+                    <span className="text-xs">✈️</span>
+                  </div>
+                  <span className="text-xs font-black text-pilot-orange uppercase tracking-wider">AI Pilot</span>
+                </div>
+                <p className="text-[10px] text-white/60 leading-relaxed">
+                  {completedToday > 0
+                    ? `Great work! ${completedToday} task${completedToday !== 1 ? 's' : ''} completed today. Keep the momentum!`
+                    : `${taskCount} task${taskCount !== 1 ? 's' : ''} in your queue. Match them to your ${energyLevel} energy!`}
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Collapse Toggle Button */}
-          <div className="hidden lg:block mt-auto pt-4 border-t border-white/5">
+          <div className="hidden lg:block pt-2 border-t border-white/5">
             <button
               onClick={toggleCollapse}
               className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} p-3 rounded-lg bg-pilot-orange/10 hover:bg-pilot-orange/20 border border-pilot-orange/20 text-pilot-orange hover:text-pilot-orange transition-all group relative`}
@@ -2203,7 +2252,17 @@ export default function App() {
       )}
       <KeyboardShortcuts isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
       <div className={`min-h-screen flex font-sans selection:bg-pilot-orange/30 ${focusMode ? 'focus-mode' : ''} ${theme === 'dark' ? 'bg-deepnavy text-white' : 'bg-gray-50 text-gray-900'}`}>
-        {!focusMode && <Sidebar isCollapsed={isSidebarCollapsed} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)} />}
+        {!focusMode && (
+          <Sidebar
+            isCollapsed={isSidebarCollapsed}
+            isOpen={isSidebarOpen}
+            setIsOpen={setIsSidebarOpen}
+            toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            taskCount={state.tasks.length}
+            completedToday={state.tasks.filter(t => t.isCompleted && t.createdAt.startsWith(new Date().toISOString().split('T')[0])).length}
+            energyLevel={state.energyLevel || 'Medium'}
+          />
+        )}
         <main className={`flex-1 transition-all duration-300 ease-in-out p-6 lg:p-12 ${!focusMode ? (isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72') : ''} flex flex-col h-screen overflow-hidden relative`}>
           {!focusMode && <TopBar toggleSidebar={() => setIsSidebarOpen(true)} onLogout={handleLogout} onShowProfile={() => setShowProfile(true)} user={currentUser} focusMode={focusMode} toggleFocusMode={() => setFocusMode(!focusMode)} searchQuery={searchQuery} setSearchQuery={setSearchQuery} theme={theme} toggleTheme={toggleTheme} onShowMusicPlayer={() => setShowMusicPlayer(true)} />}
           {focusMode && (
@@ -2239,11 +2298,6 @@ export default function App() {
           energyLevel={state.energyLevel || 'Medium'}
         />
       )}
-      <AIPilot
-        taskCount={state.tasks.length}
-        completedToday={state.tasks.filter(t => t.isCompleted && t.createdAt.startsWith(new Date().toISOString().split('T')[0])).length}
-        energyLevel={state.energyLevel || 'Medium'}
-      />
       <style>{`
         @keyframes bounce-short { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
         .animate-bounce-short { animation: bounce-short 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
