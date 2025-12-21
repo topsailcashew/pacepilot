@@ -1224,17 +1224,43 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
   const [isFlowModalOpen, setIsFlowModalOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [flowInsights, setFlowInsights] = useState<string[]>([]);
+  const [viewingDate, setViewingDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   const selectedReport = useMemo(() =>
     reports.find(r => r.date === selectedReportDate),
     [reports, selectedReportDate]
   );
 
-  // Get tasks completed today
-  const todayTasks = useMemo(() => {
+  // Get tasks completed on the viewing date
+  const viewingDateTasks = useMemo(() => {
+    return tasks.filter(t => t.isCompleted && t.createdAt.startsWith(viewingDate));
+  }, [tasks, viewingDate]);
+
+  // Navigation functions
+  const goToPreviousDay = () => {
+    const currentDate = new Date(viewingDate);
+    currentDate.setDate(currentDate.getDate() - 1);
+    setViewingDate(currentDate.toISOString().split('T')[0]);
+  };
+
+  const goToNextDay = () => {
+    const currentDate = new Date(viewingDate);
+    const tomorrow = new Date(currentDate);
+    tomorrow.setDate(currentDate.getDate() + 1);
     const today = new Date().toISOString().split('T')[0];
-    return tasks.filter(t => t.isCompleted && t.createdAt.startsWith(today));
-  }, [tasks]);
+
+    // Don't allow navigating beyond today
+    if (tomorrow.toISOString().split('T')[0] <= today) {
+      setViewingDate(tomorrow.toISOString().split('T')[0]);
+    }
+  };
+
+  const goToToday = () => {
+    setViewingDate(new Date().toISOString().split('T')[0]);
+  };
+
+  const isToday = viewingDate === new Date().toISOString().split('T')[0];
+  const canGoNext = viewingDate < new Date().toISOString().split('T')[0];
 
   // Calculate dynamic stats
   const stats = useMemo(() => {
@@ -1325,19 +1351,66 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
         </div>
       </section>
 
-      {/* Today's Tasks Table */}
+      {/* Date-Specific Tasks Table */}
       <section className={THEME.card}>
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div className="flex items-center gap-3">
             <CheckCircle2 size={24} className="text-pilot-orange" />
-            <h3 className="text-xl font-black text-white uppercase tracking-widest">Today's Completed Tasks</h3>
+            <div>
+              <h3 className="text-xl font-black text-white uppercase tracking-widest">
+                {isToday ? "Today's Completed Tasks" : "Completed Tasks"}
+              </h3>
+              <p className="text-xs text-white/40 mt-1 uppercase tracking-wider">
+                {new Date(viewingDate).toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric'
+                })}
+              </p>
+            </div>
           </div>
-          <div className="px-4 py-2 bg-pilot-orange/10 border border-pilot-orange/20 rounded-lg">
-            <span className="text-xs font-black text-pilot-orange uppercase tracking-wider">{todayTasks.length} Tasks</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-white/[0.02] border border-white/5 rounded-lg overflow-hidden">
+              <button
+                onClick={goToPreviousDay}
+                className="px-4 py-2 hover:bg-white/10 transition-colors"
+                title="Previous Day"
+              >
+                <ChevronLeft size={16} className="text-white/60" />
+              </button>
+              <button
+                onClick={goToToday}
+                disabled={isToday}
+                className={`px-4 py-2 text-xs font-black uppercase tracking-wider transition-colors ${
+                  isToday
+                    ? 'text-pilot-orange cursor-default'
+                    : 'text-white/60 hover:text-white hover:bg-white/10'
+                }`}
+                title="Go to Today"
+              >
+                Today
+              </button>
+              <button
+                onClick={goToNextDay}
+                disabled={!canGoNext}
+                className={`px-4 py-2 transition-colors ${
+                  canGoNext
+                    ? 'hover:bg-white/10'
+                    : 'opacity-30 cursor-not-allowed'
+                }`}
+                title="Next Day"
+              >
+                <ChevronRight size={16} className="text-white/60" />
+              </button>
+            </div>
+            <div className="px-4 py-2 bg-pilot-orange/10 border border-pilot-orange/20 rounded-lg">
+              <span className="text-xs font-black text-pilot-orange uppercase tracking-wider">{viewingDateTasks.length} Tasks</span>
+            </div>
           </div>
         </div>
 
-        {todayTasks.length > 0 ? (
+        {viewingDateTasks.length > 0 ? (
           <div className="bg-white/[0.01] border border-white/5 rounded-xl overflow-hidden">
             <table className="w-full text-left">
               <thead>
@@ -1350,7 +1423,7 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {todayTasks.map((task) => (
+                {viewingDateTasks.map((task) => (
                   <tr key={task.id} className="group hover:bg-white/[0.02] transition-colors">
                     <td className="px-6 py-4">
                       <p className="text-sm font-bold text-white/80 group-hover:text-pilot-orange transition-colors">{task.title}</p>
@@ -1393,7 +1466,9 @@ const ReportsPage = ({ reports, tasks }: { reports: DailyReport[], tasks: Task[]
         ) : (
           <div className="text-center py-16 bg-white/[0.01] border border-white/5 rounded-xl">
             <CheckCircle2 size={40} className="mx-auto mb-4 text-white/10" />
-            <p className="text-sm font-bold text-white/30 uppercase tracking-wider">No tasks completed today yet</p>
+            <p className="text-sm font-bold text-white/30 uppercase tracking-wider">
+              {isToday ? 'No tasks completed today yet' : 'No tasks completed on this date'}
+            </p>
           </div>
         )}
       </section>
