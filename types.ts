@@ -1,10 +1,16 @@
 
 export type EnergyLevel = 'Low' | 'Medium' | 'High';
 
-export interface Subtask {
-  id: string;
-  title: string;
-  isCompleted: boolean;
+export interface User {
+  name: string;
+  email: string;
+  avatar?: string;
+  streak: number;
+  preferences: {
+    startTime: string;
+    endTime: string;
+    dailyGoal: number;
+  };
 }
 
 export interface Task {
@@ -19,23 +25,6 @@ export interface Task {
   createdAt: string;
   isRecurring?: boolean;
   recurringInterval?: 'Daily' | 'Weekly' | 'Monthly';
-  subtasks?: Subtask[];
-  collaboration?: string;
-  timeSpent?: number; // in minutes
-}
-
-export interface TaskTemplate {
-  id: string;
-  name: string; // Template name
-  description?: string;
-  category?: string;
-  projectId?: string;
-  energyRequired: EnergyLevel;
-  isRecurring?: boolean;
-  recurringInterval?: 'Daily' | 'Weekly' | 'Monthly';
-  subtasks?: Omit<Subtask, 'id' | 'isCompleted'>[]; // Template subtasks without completion state
-  collaboration?: string;
-  createdAt: string;
 }
 
 export interface Project {
@@ -80,7 +69,6 @@ export interface DailyReport {
   taskBreakdown: TaskBreakdownItem[];
 }
 
-// Added 'Jazz' to the MusicGenre union type
 export type MusicGenre = 'Lo-Fi' | 'Jazz' | 'Synth Wave' | 'Chill Trap';
 
 export interface AppState {
@@ -91,5 +79,5 @@ export interface AppState {
   energyLevel: EnergyLevel | null;
   dailyReports: DailyReport[];
   currentStreak: number;
-  taskTemplates: TaskTemplate[];
+  user: User | null;
 }
