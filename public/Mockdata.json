@@ -1,0 +1,194 @@
+{
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Finalize Church Website Redesign",
+      "description": "Review the new landing page and fix any broken links.",
+      "energyRequired": "High",
+      "isCompleted": false,
+      "projectId": "p3",
+      "createdAt": "2025-12-15T09:00:00Z",
+      "dueDate": "2025-12-18T17:00:00Z"
+    },
+    {
+      "id": "t2",
+      "title": "Edit Youth Dance Video",
+      "description": "Cut the footage from last Sunday's performance for Instagram.",
+      "energyRequired": "Medium",
+      "isCompleted": false,
+      "projectId": "p1",
+      "createdAt": "2025-12-16T14:30:00Z",
+      "dueDate": "2025-12-17T20:00:00Z"
+    },
+    {
+      "id": "t3",
+      "title": "Email Blast for Christmas Event",
+      "description": "Send out the Mailchimp campaign to the main list.",
+      "energyRequired": "Low",
+      "isCompleted": false,
+      "projectId": "p2",
+      "createdAt": "2025-12-17T10:00:00Z"
+    },
+    {
+      "id": "t4",
+      "title": "Stock Up on Coffee Supplies",
+      "description": "Buy milk, sugar, and stirrers for the lobby.",
+      "energyRequired": "Low",
+      "isCompleted": true,
+      "projectId": "p2",
+      "createdAt": "2025-12-17T08:00:00Z"
+    },
+    {
+      "id": "t5",
+      "title": "Draft Sermon Notes",
+      "description": "Outline for the upcoming series on 'Pace and Grace'.",
+      "energyRequired": "High",
+      "isCompleted": false,
+      "projectId": "p1",
+      "createdAt": "2025-12-17T11:00:00Z"
+    }
+  ],
+  "projects": [
+    {
+      "id": "p1",
+      "name": "Ministry Excellence",
+      "color": "bg-pilot-orange",
+      "icon": "Briefcase"
+    },
+    {
+      "id": "p2",
+      "name": "Personal Growth",
+      "color": "bg-blue-500",
+      "icon": "User"
+    },
+    {
+      "id": "p3",
+      "name": "Ocean Rebrand 2026",
+      "color": "bg-green-500",
+      "icon": "Globe"
+    }
+  ],
+  "calendarEvents": [
+    {
+      "id": "e1",
+      "day": 16,
+      "title": "Staff Briefing",
+      "color": "bg-pilot-orange",
+      "time": "10:00 AM",
+      "loc": "Conference Room"
+    },
+    {
+      "id": "e2",
+      "day": 17,
+      "title": "Youth Dance Sync",
+      "color": "bg-blue-500",
+      "time": "2:00 PM",
+      "loc": "Main Hall"
+    },
+    {
+      "id": "e3",
+      "day": 17,
+      "title": "Budget Review",
+      "color": "bg-pilot-orange",
+      "time": "4:30 PM",
+      "loc": "Home Office"
+    },
+    {
+      "id": "e4",
+      "day": 18,
+      "title": "Service Planning",
+      "color": "bg-green-500",
+      "time": "11:00 AM",
+      "loc": "Zoom"
+    }
+  ],
+  "recurringTasks": [
+    {
+      "id": "r1",
+      "task": "Upload sermon to website",
+      "status": "Completed",
+      "last": "Dec 16, 2025",
+      "interval": "Weekly"
+    },
+    {
+      "id": "r2",
+      "task": "Update Church Statistics",
+      "status": "Pending",
+      "last": "2 days ago",
+      "interval": "Monthly"
+    },
+    {
+      "id": "r3",
+      "task": "Update Church Events on Website",
+      "status": "Pending",
+      "last": "Last week",
+      "interval": "Weekly"
+    },
+    {
+      "id": "r4",
+      "task": "Prepare Monthly Newsletter",
+      "status": "Pending",
+      "last": "Last month",
+      "interval": "Monthly"
+    },
+    {
+      "id": "r5",
+      "task": "Daily Devotional Email",
+      "status": "Completed",
+      "last": "Today",
+      "interval": "Daily"
+    }
+  ],
+  "dailyReports": [
+    {
+      "date": "2025-12-15",
+      "energyLevel": "Medium",
+      "momentumScore": 72,
+      "notes": "Solid start to the week. Felt a bit sluggish in the afternoon.",
+      "aiInsights": "You hit your stride late morning. Try to tackle high-energy tasks right before lunch. 🍱",
+      "completedTaskIds": ["t4", "t6"],
+      "goals": ["Finish draft proposal", "Review stats"],
+      "taskBreakdown": [
+        { "task": "Stock Supplies", "collaboration": "None", "notes": "Quick run to the store", "timeSpent": "45m" },
+        { "task": "Drafting", "collaboration": "Lead Pastor", "notes": "Started the skeleton", "timeSpent": "2h" }
+      ]
+    },
+    {
+      "date": "2025-12-16",
+      "energyLevel": "High",
+      "momentumScore": 88,
+      "notes": "Productive morning, cleared out most high-energy tasks early.",
+      "aiInsights": "You tend to peak around 10 AM. Scheduling deep work then is working well! 🚀",
+      "completedTaskIds": ["t2", "t4"],
+      "goals": ["Record youth promo", "Admin catchup"],
+      "taskBreakdown": [
+        { "task": "Edit Video", "collaboration": "Youth Team", "notes": "Exports look clean", "timeSpent": "3h" },
+        { "task": "Stats Sync", "collaboration": "None", "notes": "All data entered", "timeSpent": "1h" }
+      ]
+    },
+    {
+      "date": "2025-12-17",
+      "energyLevel": "Low",
+      "momentumScore": 45,
+      "notes": "Needed a rest day. Focused on low energy tasks only.",
+      "aiInsights": "Rest is productive too! You aligned well with your energy today. ☕",
+      "completedTaskIds": ["t3"],
+      "goals": ["Email blast", "Rest"],
+      "taskBreakdown": [
+        { "task": "Email Blast", "collaboration": "None", "notes": "Sent to 500+ members", "timeSpent": "1.5h" }
+      ]
+    },
+    {
+      "date": "2025-12-18",
+      "energyLevel": "Medium",
+      "momentumScore": 65,
+      "notes": "Balanced day. Managed to catch up on some lingering emails.",
+      "aiInsights": "Steady progress. Consistency is your superpower this week. ⚓",
+      "completedTaskIds": ["t1"],
+      "goals": ["Finalize Website", "Prep for Sunday"],
+      "taskBreakdown": [
+        { "task": "Website Fixes", "collaboration": "IT Dept", "notes": "Main links fixed", "timeSpent": "2h" }
+      ]
+    }
+  ]
+}
