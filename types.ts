@@ -25,6 +25,7 @@ export interface Task {
   createdAt: string;
   isRecurring?: boolean;
   recurringInterval?: 'Daily' | 'Weekly' | 'Monthly';
+  eisenhower?: 'Urgent & Important' | 'Important, Not Urgent' | 'Urgent, Not Important' | 'Not Urgent, Not Important';
 }
 
 export interface Project {
