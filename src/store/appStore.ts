@@ -1,45 +1,46 @@
 import { create } from 'zustand';
-import { AppState, EnergyLevel, Task, User, Toast, RecurringStatus } from '@/types';
+import type { AppState, EnergyLevel, Task, User, Toast, RecurringStatus } from '@/types';
+import * as db from '@/services/appwriteService';
 
 let toastIdCounter = 0;
 
 interface AppStore extends AppState {
-  /** Loading state for initial data fetch */
   isLoading: boolean;
-  /** Toast notifications queue */
   toasts: Toast[];
 
-  // --- Auth actions ---
+  // Auth
   setUser: (user: User | null) => void;
   updateUser: (updates: Partial<User>) => void;
 
-  // --- Task actions ---
-  /** Toggle task completion status */
-  toggleTask: (id: string) => void;
-  /** Patch a task with partial updates */
-  updateTask: (id: string, updates: Partial<Task>) => void;
-  /** Prepend a new task to the list */
-  addTask: (task: Task) => void;
-  /** Remove a task permanently */
-  deleteTask: (id: string) => void;
+  // Tasks — optimistic updates, then Appwrite sync
+  toggleTask: (id: string) => Promise<void>;
+  updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+  addTask: (task: Task) => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
 
-  // --- Energy ---
+  // Energy
   setEnergy: (level: EnergyLevel) => void;
 
-  // --- Recurring tasks ---
-  toggleRecurringTask: (id: string) => void;
+  // Recurring
+  toggleRecurringTask: (id: string) => Promise<void>;
 
-  // --- Initialization ---
+  // Bootstrap
   initializeData: (data: Partial<AppState>) => void;
   setLoading: (loading: boolean) => void;
 
-  // --- Toasts ---
+  // Toasts
   addToast: (type: Toast['type'], message: string) => void;
   removeToast: (id: string) => void;
 }
 
-export const useAppStore = create<AppStore>((set) => ({
-  // Initial state
+const appwriteEnabled = (): boolean =>
+  Boolean(
+    import.meta.env.VITE_APPWRITE_PROJECT_ID &&
+      import.meta.env.VITE_APPWRITE_DATABASE_ID
+  );
+
+export const useAppStore = create<AppStore>((set, get) => ({
+  // ── State ──────────────────────────────────────────────────────────────────
   tasks: [],
   projects: [],
   calendarEvents: [],
@@ -51,65 +52,114 @@ export const useAppStore = create<AppStore>((set) => ({
   isLoading: true,
   toasts: [],
 
-  // Auth
+  // ── Auth ───────────────────────────────────────────────────────────────────
   setUser: (user) => set({ user }),
   updateUser: (updates) =>
-    set((state) => ({
-      user: state.user ? { ...state.user, ...updates } : null,
-    })),
+    set((s) => ({ user: s.user ? { ...s.user, ...updates } : null })),
 
-  // Tasks
-  toggleTask: (id) =>
-    set((state) => ({
-      tasks: state.tasks.map((t) =>
-        t.id === id ? { ...t, isCompleted: !t.isCompleted } : t
-      ),
-    })),
+  // ── Tasks ──────────────────────────────────────────────────────────────────
+  toggleTask: async (id) => {
+    const task = get().tasks.find((t) => t.id === id);
+    if (!task) return;
+    const next = !task.isCompleted;
 
-  updateTask: (id, updates) =>
-    set((state) => ({
-      tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
-    })),
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, isCompleted: next } : t)),
+    }));
 
-  addTask: (task) =>
-    set((state) => ({ tasks: [task, ...state.tasks] })),
+    if (!appwriteEnabled()) return;
+    try {
+      await db.updateTask(id, { isCompleted: next });
+    } catch (err) {
+      console.error('[store] toggleTask:', err);
+      set((s) => ({
+        tasks: s.tasks.map((t) => (t.id === id ? { ...t, isCompleted: !next } : t)),
+      }));
+      get().addToast('error', 'Could not save task update — please retry.');
+    }
+  },
 
-  deleteTask: (id) =>
-    set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) })),
+  updateTask: async (id, updates) => {
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+    }));
 
-  // Energy
+    if (!appwriteEnabled()) return;
+    try {
+      await db.updateTask(id, updates);
+    } catch (err) {
+      console.error('[store] updateTask:', err);
+      get().addToast('error', 'Could not save task changes.');
+    }
+  },
+
+  addTask: async (task) => {
+    set((s) => ({ tasks: [task, ...s.tasks] }));
+
+    const userId = get().user?.email;
+    if (!appwriteEnabled() || !userId) return;
+    try {
+      await db.createTask(task, userId);
+    } catch (err) {
+      console.error('[store] addTask:', err);
+      set((s) => ({ tasks: s.tasks.filter((t) => t.id !== task.id) }));
+      get().addToast('error', 'Could not save new task — please retry.');
+    }
+  },
+
+  deleteTask: async (id) => {
+    const removed = get().tasks.find((t) => t.id === id);
+    set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+
+    if (!appwriteEnabled()) return;
+    try {
+      await db.deleteTask(id);
+    } catch (err) {
+      console.error('[store] deleteTask:', err);
+      if (removed) set((s) => ({ tasks: [removed, ...s.tasks] }));
+      get().addToast('error', 'Could not delete task — please retry.');
+    }
+  },
+
+  // ── Energy ─────────────────────────────────────────────────────────────────
   setEnergy: (level) => set({ energyLevel: level }),
 
-  // Recurring
-  toggleRecurringTask: (id) =>
-    set((state) => ({
-      recurringTasks: state.recurringTasks.map((rt) =>
-        rt.id === id
-          ? {
-              ...rt,
-              status: (rt.status === 'Completed'
-                ? 'Pending'
-                : 'Completed') as RecurringStatus,
-            }
-          : rt
-      ),
-    })),
+  // ── Recurring ──────────────────────────────────────────────────────────────
+  toggleRecurringTask: async (id) => {
+    const rt = get().recurringTasks.find((r) => r.id === id);
+    if (!rt) return;
+    const next: RecurringStatus = rt.status === 'Completed' ? 'Pending' : 'Completed';
 
-  // Initialization
-  initializeData: (data) => set((state) => ({ ...state, ...data })),
+    set((s) => ({
+      recurringTasks: s.recurringTasks.map((r) =>
+        r.id === id ? { ...r, status: next } : r
+      ),
+    }));
+
+    if (!appwriteEnabled()) return;
+    try {
+      await db.updateRecurringTask(id, next);
+    } catch (err) {
+      console.error('[store] toggleRecurring:', err);
+      set((s) => ({
+        recurringTasks: s.recurringTasks.map((r) =>
+          r.id === id ? { ...r, status: rt.status } : r
+        ),
+      }));
+      get().addToast('error', 'Could not save habit update.');
+    }
+  },
+
+  // ── Bootstrap ──────────────────────────────────────────────────────────────
+  initializeData: (data) => set((s) => ({ ...s, ...data })),
   setLoading: (loading) => set({ isLoading: loading }),
 
-  // Toasts
+  // ── Toasts ─────────────────────────────────────────────────────────────────
   addToast: (type, message) =>
-    set((state) => ({
-      toasts: [
-        ...state.toasts,
-        { id: String(++toastIdCounter), type, message },
-      ],
+    set((s) => ({
+      toasts: [...s.toasts, { id: String(++toastIdCounter), type, message }],
     })),
 
   removeToast: (id) =>
-    set((state) => ({
-      toasts: state.toasts.filter((t) => t.id !== id),
-    })),
+    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));

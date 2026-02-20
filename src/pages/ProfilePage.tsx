@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut, TrendingUp, User as UserIcon } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { THEME } from '@/constants';
+import { isAppwriteConfigured } from '@/lib/appwrite';
+import { logOut, saveUserPreferences } from '@/services/appwriteService';
 
 /**
  * User profile page with personal settings and logout.
@@ -13,14 +15,36 @@ export const ProfilePage: React.FC = () => {
 
   if (!user) return null;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (isAppwriteConfigured()) {
+      try {
+        await logOut();
+      } catch (err) {
+        console.error('[ProfilePage] logout error:', err);
+      }
+    }
     setUser(null);
     navigate('/login');
   };
 
-  const handleUpdatePreferences = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleUpdatePreferences = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Placeholder: in a real app this would PATCH the user via an API
+    const fd = new FormData(e.currentTarget);
+    const prefs = {
+      startTime: fd.get('startTime') as string,
+      endTime: fd.get('endTime') as string,
+      dailyGoal: Number(fd.get('dailyGoal')),
+      streak: user.streak,
+    };
+    if (isAppwriteConfigured()) {
+      try {
+        await saveUserPreferences(prefs);
+      } catch (err) {
+        console.error('[ProfilePage] savePrefs:', err);
+        addToast('error', 'Could not save preferences to server.');
+        return;
+      }
+    }
     addToast('success', 'Preferences saved!');
   };
 
@@ -76,6 +100,7 @@ export const ProfilePage: React.FC = () => {
                 </label>
                 <input
                   id="startTime"
+                  name="startTime"
                   type="time"
                   defaultValue={user.preferences.startTime}
                   className={`${THEME.input} w-full`}
@@ -88,6 +113,7 @@ export const ProfilePage: React.FC = () => {
                 </label>
                 <input
                   id="endTime"
+                  name="endTime"
                   type="time"
                   defaultValue={user.preferences.endTime}
                   className={`${THEME.input} w-full`}
@@ -100,6 +126,7 @@ export const ProfilePage: React.FC = () => {
                 </label>
                 <select
                   id="dailyGoal"
+                  name="dailyGoal"
                   className={`${THEME.input} w-full`}
                   defaultValue={user.preferences.dailyGoal}
                 >
