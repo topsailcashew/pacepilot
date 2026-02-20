@@ -1,27 +1,78 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Zap, Globe } from 'lucide-react';
+import { Zap, Globe, Loader2 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { THEME } from '@/constants';
-import { User } from '@/types';
+import { isAppwriteConfigured } from '@/lib/appwrite';
+import {
+  signUp,
+  getCurrentUser,
+  loadUserPreferences,
+  seedDefaultProjects,
+} from '@/services/appwriteService';
+import type { User } from '@/types';
 
-const NEW_USER: User = {
-  name: 'Nathaniel',
-  email: 'hello@pacepilot.com',
+const DEMO_USER: User = {
+  name: 'Nathaniel (Demo)',
+  email: 'demo@pacepilot.com',
   streak: 0,
   preferences: { startTime: '08:00', endTime: '18:00', dailyGoal: 5 },
 };
 
 /**
- * Registration page. Simulates OAuth sign-up with a demo account.
+ * Registration page.
+ *
+ * When Appwrite is configured: creates a real Appwrite account.
+ * Otherwise: signs in as the demo user.
  */
 export const SignupPage: React.FC = () => {
   const navigate = useNavigate();
-  const setUser = useAppStore((s) => s.setUser);
+  const { setUser, initializeData, addToast } = useAppStore();
 
-  const handleAuth = () => {
-    setUser(NEW_USER);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleDemoSignup = () => {
+    setUser(DEMO_USER);
     navigate('/');
+  };
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAppwriteConfigured()) { handleDemoSignup(); return; }
+
+    setIsSubmitting(true);
+    try {
+      await signUp(name || email.split('@')[0], email, password);
+      const appUser = await getCurrentUser();
+      if (!appUser) throw new Error('Could not retrieve user after signup');
+
+      const prefs = await loadUserPreferences();
+      setUser({
+        name: appUser.name,
+        email: appUser.email,
+        streak: 0,
+        preferences: {
+          startTime: prefs.startTime,
+          endTime: prefs.endTime,
+          dailyGoal: prefs.dailyGoal,
+        },
+      });
+
+      // Seed default projects for new account
+      const projects = await seedDefaultProjects(appUser.$id);
+      initializeData({ projects, tasks: [], calendarEvents: [], recurringTasks: [], dailyReports: [] });
+
+      addToast('success', `Welcome to Pace Pilot, ${appUser.name}! 🚀`);
+      navigate('/');
+    } catch (err) {
+      console.error('[SignupPage]', err);
+      addToast('error', 'Could not create account. That email may already be in use.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -37,34 +88,34 @@ export const SignupPage: React.FC = () => {
           <p className="text-[10px] text-white/30 font-bold uppercase tracking-[0.2em] mt-2">
             Join Pace Pilot today
           </p>
+          {!isAppwriteConfigured() && (
+            <p className="mt-3 text-[10px] text-pilot-orange/80 font-bold uppercase tracking-widest bg-pilot-orange/5 border border-pilot-orange/20 rounded-lg px-3 py-2">
+              ⚡ Demo mode — Appwrite not configured
+            </p>
+          )}
         </div>
 
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleAuth();
-          }}
-        >
+        <form className="space-y-4" onSubmit={handleSignup}>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className={THEME.label} htmlFor="firstName">
-                First Name
+              <label className={THEME.label} htmlFor="signup-name">
+                Full Name
               </label>
               <input
-                id="firstName"
+                id="signup-name"
                 type="text"
-                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 className={`${THEME.input} w-full`}
                 placeholder="NATHANIEL"
               />
             </div>
             <div className="space-y-2">
-              <label className={THEME.label} htmlFor="focus">
+              <label className={THEME.label} htmlFor="signup-focus">
                 Focus Area
               </label>
               <input
-                id="focus"
+                id="signup-focus"
                 type="text"
                 className={`${THEME.input} w-full`}
                 placeholder="CREATIVE"
@@ -73,27 +124,31 @@ export const SignupPage: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className={THEME.label} htmlFor="email">
+            <label className={THEME.label} htmlFor="signup-email">
               Email Address
             </label>
             <input
-              id="email"
+              id="signup-email"
               type="email"
               required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className={`${THEME.input} w-full`}
               placeholder="HELLO@PACEPILOT.COM"
             />
           </div>
 
           <div className="space-y-2">
-            <label className={THEME.label} htmlFor="password">
+            <label className={THEME.label} htmlFor="signup-password">
               Password
             </label>
             <input
-              id="password"
+              id="signup-password"
               type="password"
               required
               minLength={8}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className={`${THEME.input} w-full`}
               placeholder="8+ CHARACTERS"
             />
@@ -101,9 +156,11 @@ export const SignupPage: React.FC = () => {
 
           <button
             type="submit"
-            className={`${THEME.buttonPrimary} w-full py-4 text-xs font-black uppercase tracking-widest mt-4 shadow-lg shadow-pilot-orange/20`}
+            disabled={isSubmitting}
+            className={`${THEME.buttonPrimary} w-full py-4 text-xs font-black uppercase tracking-widest mt-4 shadow-lg shadow-pilot-orange/20 flex items-center justify-center gap-2 disabled:opacity-60`}
           >
-            Create Account
+            {isSubmitting && <Loader2 size={14} className="animate-spin" />}
+            {isSubmitting ? 'Creating Account…' : 'Create Account'}
           </button>
         </form>
 
@@ -119,10 +176,11 @@ export const SignupPage: React.FC = () => {
         </div>
 
         <button
-          onClick={handleAuth}
+          onClick={handleDemoSignup}
           className="w-full bg-white/5 border border-white/10 text-white font-black py-4 rounded-lg flex items-center justify-center gap-3 text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
         >
-          <Globe size={16} /> Google Account
+          <Globe size={16} />
+          {isAppwriteConfigured() ? 'Google Account' : 'Continue as Demo'}
         </button>
 
         <p className="text-center text-[10px] font-bold text-white/20 uppercase tracking-widest mt-6">
