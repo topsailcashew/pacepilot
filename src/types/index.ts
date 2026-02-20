@@ -1,5 +1,16 @@
-
 export type EnergyLevel = 'Low' | 'Medium' | 'High';
+
+export type RecurringInterval = 'Daily' | 'Weekly' | 'Monthly';
+
+export type RecurringStatus = 'Completed' | 'Pending';
+
+export type EisenhowerCategory =
+  | 'Urgent & Important'
+  | 'Important, Not Urgent'
+  | 'Urgent, Not Important'
+  | 'Not Urgent, Not Important';
+
+export type MusicGenre = 'Lo-Fi' | 'Jazz' | 'Synth Wave' | 'Chill Trap';
 
 export interface User {
   name: string;
@@ -24,8 +35,8 @@ export interface Task {
   dueDate?: string;
   createdAt: string;
   isRecurring?: boolean;
-  recurringInterval?: 'Daily' | 'Weekly' | 'Monthly';
-  eisenhower?: 'Urgent & Important' | 'Important, Not Urgent' | 'Urgent, Not Important' | 'Not Urgent, Not Important';
+  recurringInterval?: RecurringInterval;
+  eisenhower?: EisenhowerCategory;
 }
 
 export interface Project {
@@ -47,9 +58,9 @@ export interface CalendarEvent {
 export interface RecurringTask {
   id: string;
   task: string;
-  status: string;
+  status: RecurringStatus;
   last: string;
-  interval: 'Daily' | 'Weekly' | 'Monthly';
+  interval: RecurringInterval;
 }
 
 export interface TaskBreakdownItem {
@@ -70,8 +81,6 @@ export interface DailyReport {
   taskBreakdown: TaskBreakdownItem[];
 }
 
-export type MusicGenre = 'Lo-Fi' | 'Jazz' | 'Synth Wave' | 'Chill Trap';
-
 export interface AppState {
   tasks: Task[];
   projects: Project[];
@@ -81,4 +90,18 @@ export interface AppState {
   dailyReports: DailyReport[];
   currentStreak: number;
   user: User | null;
+}
+
+/** Shape of AI task suggestion returned by Gemini */
+export interface TaskSuggestion {
+  taskId: string;
+  reason: string;
+  vibeCheck: string;
+}
+
+/** Shape of a toast notification */
+export interface Toast {
+  id: string;
+  type: 'success' | 'error' | 'info';
+  message: string;
 }
