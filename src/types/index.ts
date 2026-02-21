@@ -106,3 +106,19 @@ export interface Toast {
   type: 'success' | 'error' | 'info';
   message: string;
 }
+
+export type NotificationType =
+  | 'overdue_task'
+  | 'calendar_event'
+  | 'habit_due'
+  | 'report_reminder';
+
+export interface AppNotification {
+  /** Deterministic ID derived from source data — e.g. "overdue-<taskId>". */
+  id: string;
+  type: NotificationType;
+  title: string;
+  subtitle?: string;
+  /** Hash-router path to navigate to on click. */
+  href: string;
+}

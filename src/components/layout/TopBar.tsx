@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Menu, Bell } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useClock } from '@/hooks/useClock';
+import { useAppStore } from '@/store/appStore';
+import { computeNotifications } from '@/services/notificationsService';
+import { NotificationPanel } from './NotificationPanel';
 
 interface TopBarProps {
   toggleSidebar: () => void;
@@ -19,13 +22,60 @@ const ROUTE_TITLES: Record<string, string> = {
 
 /**
  * Sticky page header containing the live clock, system status, and notification bell.
- * Title updates based on the current route.
+ * Title updates based on the current route. The bell opens a derived notification panel
+ * computed from existing store data (overdue tasks, today's events, habits, report reminder).
  */
 export const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
   const now = useClock();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
 
-  // Match /projects/:id → 'Projects'
+  // Notification state
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const bellRef = useRef<HTMLDivElement>(null);
+
+  // Store slices needed for notification computation
+  const tasks = useAppStore((s) => s.tasks);
+  const calendarEvents = useAppStore((s) => s.calendarEvents);
+  const recurringTasks = useAppStore((s) => s.recurringTasks);
+  const dailyReports = useAppStore((s) => s.dailyReports);
+
+  // Computed notifications — recomputes when store data changes (not every clock tick)
+  const notifications = useMemo(
+    () => computeNotifications(tasks, calendarEvents, recurringTasks, dailyReports, now),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tasks, calendarEvents, recurringTasks, dailyReports]
+  );
+
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !dismissedIds.has(n.id)).length,
+    [notifications, dismissedIds]
+  );
+
+  // Close panel on click outside
+  useEffect(() => {
+    if (!isPanelOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setIsPanelOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isPanelOpen]);
+
+  const handleDismiss = (id: string) =>
+    setDismissedIds((prev) => new Set([...prev, id]));
+
+  const handleClearAll = () =>
+    setDismissedIds(new Set(notifications.map((n) => n.id)));
+
+  const handleNotificationClick = (href: string) => {
+    setIsPanelOpen(false);
+    navigate(href);
+  };
+
   const title =
     ROUTE_TITLES[pathname] ??
     (pathname.startsWith('/projects') ? 'Projects' : 'Pace Pilot');
@@ -62,13 +112,37 @@ export const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
         </div>
 
         {/* Notification bell */}
-        <button
-          aria-label="Notifications"
-          className="text-white/20 hover:text-white transition-colors relative"
-        >
-          <Bell size={20} />
-          <span className="absolute -top-1 -right-1 w-2 h-2 bg-pilot-orange rounded-full border-2 border-deepnavy" />
-        </button>
+        <div className="relative" ref={bellRef}>
+          <button
+            aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+            aria-expanded={isPanelOpen}
+            aria-haspopup="dialog"
+            onClick={() => setIsPanelOpen((o) => !o)}
+            className="text-white/40 hover:text-white transition-colors relative p-1"
+          >
+            <Bell size={20} />
+            {unreadCount > 0 && (
+              <span
+                aria-hidden="true"
+                className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 bg-pilot-orange rounded-full border-2 border-deepnavy flex items-center justify-center"
+              >
+                <span className="text-[9px] font-black text-white leading-none">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              </span>
+            )}
+          </button>
+
+          {isPanelOpen && (
+            <NotificationPanel
+              notifications={notifications}
+              dismissedIds={dismissedIds}
+              onDismiss={handleDismiss}
+              onClearAll={handleClearAll}
+              onNavigate={handleNotificationClick}
+            />
+          )}
+        </div>
       </div>
     </header>
   );

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Deep navy rounded background -->
+  <rect width="32" height="32" rx="7" fill="#11122C"/>
+  <!-- Filled Zap / lightning bolt in pilot-orange, scaled from 24x24 to fit 32x32 with padding -->
+  <polygon
+    points="17.33,2.67 6.67,17.33 14.67,17.33 14,29.33 25.33,14.67 17.33,14.67"
+    fill="#F37324"
+  />
+</svg>
