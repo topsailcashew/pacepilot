@@ -1,21 +1,21 @@
 {
-  "projectId": "YOUR_PROJECT_ID",
-  "projectName": "Pace Pilot",
-  "endpoint": "https://cloud.appwrite.io/v1",
-  "sites": [
-    {
-      "$id": "",
-      "name": "pacepilot",
-      "framework": "other",
-      "adapter": "static",
-      "fallbackFile": "index.html",
-      "buildRuntime": "node-22",
-      "buildCommand": "npm run build",
-      "outputDirectory": "./dist",
-      "installCommand": "npm install",
-      "enabled": true,
-      "logging": true,
-      "timeout": 30
-    }
-  ]
+    "projectId": "6997deb10026f3186843",
+    "projectName": "Pace Pilot",
+    "endpoint": "https://cloud.appwrite.io/v1",
+    "sites": [
+        {
+            "$id": "pacepilot",
+            "name": "Pace Pilot",
+            "framework": "other",
+            "adapter": "static",
+            "fallbackFile": "index.html",
+            "buildRuntime": "node-22",
+            "buildCommand": "npm run build",
+            "outputDirectory": "./dist",
+            "installCommand": "npm install",
+            "enabled": true,
+            "logging": true,
+            "timeout": 30
+        }
+    ]
 }
