@@ -22,7 +22,7 @@ const NAV_ITEMS = [
   { icon: <CalendarDays size={20} />, label: 'Planner', path: '/planner' },
   { icon: <Briefcase size={20} />, label: 'Projects', path: '/projects' },
   { icon: <CalendarIcon size={20} />, label: 'Calendar', path: '/calendar' },
-  { icon: <RefreshCw size={20} />, label: 'Recurring', path: '/recurring' },
+  { icon: <RefreshCw size={20} />, label: 'Habits', path: '/recurring' },
   { icon: <BarChart2 size={20} />, label: 'Insights', path: '/reports' },
 ];
 

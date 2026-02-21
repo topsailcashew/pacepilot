@@ -1,13 +1,46 @@
-import React from 'react';
-import { PlusCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { PlusCircle, Trash2 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
+import { Modal } from '@/components/ui/Modal';
 import { THEME } from '@/constants';
+import type { RecurringInterval, RecurringTask } from '@/types';
 
 /**
  * Habits / recurring task tracker displayed as a sortable table.
+ * Supports creating and deleting habits in addition to toggling completion.
  */
 export const RecurringTasksPage: React.FC = () => {
-  const { recurringTasks, toggleRecurringTask } = useAppStore();
+  const { recurringTasks, toggleRecurringTask, addRecurringTask, deleteRecurringTask, addToast } =
+    useAppStore();
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [habitName, setHabitName] = useState('');
+  const [habitInterval, setHabitInterval] = useState<RecurringInterval>('Daily');
+
+  const handleAddHabit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!habitName.trim()) return;
+
+    const rt: RecurringTask = {
+      id: crypto.randomUUID(),
+      task: habitName.trim(),
+      status: 'Pending',
+      last: '',
+      interval: habitInterval,
+    };
+
+    await addRecurringTask(rt);
+    addToast('success', `"${rt.task}" added to habits.`);
+    setHabitName('');
+    setHabitInterval('Daily');
+    setModalOpen(false);
+  };
+
+  const handleDelete = (rt: RecurringTask) => {
+    if (!window.confirm(`Delete habit "${rt.task}"?`)) return;
+    deleteRecurringTask(rt.id);
+    addToast('info', `"${rt.task}" removed.`);
+  };
 
   return (
     <div className="animate-in fade-in duration-500 pb-12 space-y-10">
@@ -21,6 +54,7 @@ export const RecurringTasksPage: React.FC = () => {
           </p>
         </div>
         <button
+          onClick={() => setModalOpen(true)}
           className={`${THEME.buttonPrimary} px-6 py-3 text-xs font-black uppercase tracking-widest shadow-lg shadow-pilot-orange/20 flex items-center gap-2`}
         >
           <PlusCircle size={16} /> New Habit
@@ -51,7 +85,7 @@ export const RecurringTasksPage: React.FC = () => {
                     {rt.task}
                   </p>
                   <p className="text-[9px] text-white/20 mt-1 uppercase">
-                    Last Checked: {rt.last}
+                    {rt.last ? `Last Checked: ${rt.last}` : 'Not yet checked'}
                   </p>
                 </td>
 
@@ -83,18 +117,84 @@ export const RecurringTasksPage: React.FC = () => {
                 </td>
 
                 <td className="py-5 text-right">
-                  <button
-                    onClick={() => toggleRecurringTask(rt.id)}
-                    className="text-[10px] font-black text-white/20 hover:text-white uppercase tracking-widest transition-all"
-                  >
-                    {rt.status === 'Completed' ? 'Reset' : 'Complete'}
-                  </button>
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      onClick={() => toggleRecurringTask(rt.id)}
+                      className="text-[10px] font-black text-white/20 hover:text-white uppercase tracking-widest transition-all"
+                    >
+                      {rt.status === 'Completed' ? 'Reset' : 'Complete'}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(rt)}
+                      aria-label={`Delete ${rt.task}`}
+                      className="p-1.5 text-white/20 hover:text-red-400 transition-colors rounded"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
+
+            {recurringTasks.length === 0 && (
+              <tr>
+                <td colSpan={4} className="py-12 text-center text-xs text-white/20 font-bold uppercase tracking-widest">
+                  No habits yet — add one above.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
+
+      {/* New Habit Modal */}
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="New Habit">
+        <form onSubmit={handleAddHabit} className="space-y-6">
+          <div className="space-y-2">
+            <label className={THEME.label} htmlFor="habit-name">Habit Name</label>
+            <input
+              id="habit-name"
+              type="text"
+              required
+              value={habitName}
+              onChange={(e) => setHabitName(e.target.value)}
+              className={`${THEME.input} w-full`}
+              placeholder="E.G. MORNING WORKOUT"
+              autoFocus
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className={THEME.label} htmlFor="habit-interval">Frequency</label>
+            <select
+              id="habit-interval"
+              value={habitInterval}
+              onChange={(e) => setHabitInterval(e.target.value as RecurringInterval)}
+              className={`${THEME.input} w-full`}
+            >
+              <option value="Daily">Daily</option>
+              <option value="Weekly">Weekly</option>
+              <option value="Monthly">Monthly</option>
+            </select>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="submit"
+              className={`${THEME.buttonPrimary} flex-1 py-3 text-xs font-black uppercase tracking-widest`}
+            >
+              Add Habit
+            </button>
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className={`${THEME.buttonSecondary} px-6 py-3 text-xs font-black uppercase tracking-widest`}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

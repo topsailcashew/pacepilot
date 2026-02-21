@@ -1,17 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, TrendingUp, User as UserIcon } from 'lucide-react';
+import { LogOut, TrendingUp, User as UserIcon, Camera, Loader2 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { THEME } from '@/constants';
 import { isAppwriteConfigured } from '@/lib/appwrite';
-import { logOut, saveUserPreferences } from '@/services/appwriteService';
+import {
+  logOut,
+  saveUserPreferences,
+  updateUserName,
+  uploadAvatar,
+} from '@/services/appwriteService';
 
 /**
- * User profile page with personal settings and logout.
+ * User profile page with name editing, avatar upload, and preference settings.
  */
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, setUser, addToast } = useAppStore();
+  const { user, setUser, updateUser, addToast } = useAppStore();
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   if (!user) return null;
 
@@ -27,25 +34,67 @@ export const ProfilePage: React.FC = () => {
     navigate('/login');
   };
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // reset so same file can be re-selected
+    if (!file) return;
+    if (!isAppwriteConfigured() || !user.id || user.id === 'demo') {
+      addToast('info', 'Avatar upload requires a real account.');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const url = await uploadAvatar(file, user.id);
+      updateUser({ avatar: url });
+      await saveUserPreferences({
+        startTime: user.preferences.startTime,
+        endTime: user.preferences.endTime,
+        dailyGoal: user.preferences.dailyGoal,
+        streak: user.streak,
+        avatar: url,
+      });
+      addToast('success', 'Avatar updated!');
+    } catch (err) {
+      console.error('[ProfilePage] avatar upload:', err);
+      addToast('error', 'Could not upload avatar. Check your Storage bucket is configured.');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
   const handleUpdatePreferences = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const newName = (fd.get('displayName') as string).trim();
     const prefs = {
       startTime: fd.get('startTime') as string,
       endTime: fd.get('endTime') as string,
       dailyGoal: Number(fd.get('dailyGoal')),
       streak: user.streak,
+      avatar: user.avatar,
     };
-    if (isAppwriteConfigured()) {
-      try {
+
+    setIsSaving(true);
+    try {
+      if (isAppwriteConfigured()) {
+        // Update name if changed
+        if (newName && newName !== user.name && user.id !== 'demo') {
+          await updateUserName(newName);
+        }
         await saveUserPreferences(prefs);
-      } catch (err) {
-        console.error('[ProfilePage] savePrefs:', err);
-        addToast('error', 'Could not save preferences to server.');
-        return;
       }
+      if (newName && newName !== user.name) {
+        updateUser({ name: newName });
+      }
+      updateUser({ preferences: { startTime: prefs.startTime, endTime: prefs.endTime, dailyGoal: prefs.dailyGoal } });
+      addToast('success', 'Profile saved!');
+    } catch (err) {
+      console.error('[ProfilePage] savePrefs:', err);
+      addToast('error', 'Could not save profile to server.');
+    } finally {
+      setIsSaving(false);
     }
-    addToast('success', 'Preferences saved!');
   };
 
   return (
@@ -72,9 +121,42 @@ export const ProfilePage: React.FC = () => {
         <div
           className={`${THEME.card} lg:col-span-1 flex flex-col items-center justify-center text-center py-12`}
         >
-          <div className="w-28 h-28 bg-pilot-orange/10 border-4 border-pilot-orange/20 rounded-full flex items-center justify-center text-pilot-orange mb-6 shadow-2xl shadow-pilot-orange/10">
-            <UserIcon size={56} />
+          {/* Avatar image or placeholder */}
+          <div className="relative mb-6">
+            {user.avatar ? (
+              <img
+                src={user.avatar}
+                alt={user.name}
+                className="w-28 h-28 rounded-full object-cover border-4 border-pilot-orange/20 shadow-2xl shadow-pilot-orange/10"
+              />
+            ) : (
+              <div className="w-28 h-28 bg-pilot-orange/10 border-4 border-pilot-orange/20 rounded-full flex items-center justify-center text-pilot-orange shadow-2xl shadow-pilot-orange/10">
+                <UserIcon size={56} />
+              </div>
+            )}
+
+            {/* Upload trigger — label is universally browser-safe */}
+            <label
+              htmlFor="avatar-file-input"
+              aria-label="Upload avatar"
+              className={`absolute bottom-0 right-0 w-9 h-9 bg-pilot-orange rounded-full flex items-center justify-center text-white shadow-lg hover:bg-orange-500 transition-colors cursor-pointer ${isUploadingAvatar ? 'opacity-60 pointer-events-none' : ''}`}
+            >
+              {isUploadingAvatar ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Camera size={14} />
+              )}
+            </label>
+            <input
+              id="avatar-file-input"
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={handleAvatarChange}
+              disabled={isUploadingAvatar}
+            />
           </div>
+
           <h4 className="text-2xl font-black text-white tracking-tight uppercase">
             {user.name}
           </h4>
@@ -93,6 +175,21 @@ export const ProfilePage: React.FC = () => {
           </h5>
 
           <form className="space-y-8" onSubmit={handleUpdatePreferences}>
+            {/* Display Name */}
+            <div className="space-y-3">
+              <label className={THEME.label} htmlFor="displayName">
+                Display Name
+              </label>
+              <input
+                id="displayName"
+                name="displayName"
+                type="text"
+                defaultValue={user.name}
+                className={`${THEME.input} w-full`}
+                placeholder="YOUR NAME"
+              />
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
               <div className="space-y-3">
                 <label className={THEME.label} htmlFor="startTime">
@@ -153,9 +250,11 @@ export const ProfilePage: React.FC = () => {
             <div className="pt-8 border-t border-white/5 flex justify-end">
               <button
                 type="submit"
-                className={`${THEME.buttonPrimary} px-12 py-3.5 text-xs font-black uppercase tracking-widest shadow-lg shadow-pilot-orange/20`}
+                disabled={isSaving}
+                className={`${THEME.buttonPrimary} px-12 py-3.5 text-xs font-black uppercase tracking-widest shadow-lg shadow-pilot-orange/20 flex items-center gap-2 disabled:opacity-60`}
               >
-                Save Settings
+                {isSaving && <Loader2 size={14} className="animate-spin" />}
+                {isSaving ? 'Saving…' : 'Save Settings'}
               </button>
             </div>
           </form>

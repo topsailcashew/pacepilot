@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AppState, EnergyLevel, Task, User, Toast, RecurringStatus } from '@/types';
+import type { AppState, EnergyLevel, Task, Project, RecurringTask, CalendarEvent, User, Toast, RecurringStatus } from '@/types';
 import * as db from '@/services/appwriteService';
 
 let toastIdCounter = 0;
@@ -18,11 +18,22 @@ interface AppStore extends AppState {
   addTask: (task: Task) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
 
+  // Projects
+  addProject: (project: Project) => Promise<void>;
+  updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
+
+  // Calendar events
+  addCalendarEvent: (event: CalendarEvent) => Promise<void>;
+  deleteCalendarEvent: (id: string) => Promise<void>;
+
   // Energy
   setEnergy: (level: EnergyLevel) => void;
 
   // Recurring
   toggleRecurringTask: (id: string) => Promise<void>;
+  addRecurringTask: (rt: RecurringTask) => Promise<void>;
+  deleteRecurringTask: (id: string) => Promise<void>;
 
   // Bootstrap
   initializeData: (data: Partial<AppState>) => void;
@@ -96,7 +107,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   addTask: async (task) => {
     set((s) => ({ tasks: [task, ...s.tasks] }));
 
-    const userId = get().user?.email;
+    const userId = get().user?.id;
     if (!appwriteEnabled() || !userId) return;
     try {
       await db.createTask(task, userId);
@@ -118,6 +129,78 @@ export const useAppStore = create<AppStore>((set, get) => ({
       console.error('[store] deleteTask:', err);
       if (removed) set((s) => ({ tasks: [removed, ...s.tasks] }));
       get().addToast('error', 'Could not delete task — please retry.');
+    }
+  },
+
+  // ── Projects ───────────────────────────────────────────────────────────────
+  addProject: async (project) => {
+    set((s) => ({ projects: [...s.projects, project] }));
+
+    const userId = get().user?.id;
+    if (!appwriteEnabled() || !userId) return;
+    try {
+      await db.createProject(project, userId);
+    } catch (err) {
+      console.error('[store] addProject:', err);
+      set((s) => ({ projects: s.projects.filter((p) => p.id !== project.id) }));
+      get().addToast('error', 'Could not save new project — please retry.');
+    }
+  },
+
+  updateProject: async (id, updates) => {
+    set((s) => ({
+      projects: s.projects.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+    }));
+
+    if (!appwriteEnabled()) return;
+    try {
+      await db.updateProject(id, updates);
+    } catch (err) {
+      console.error('[store] updateProject:', err);
+      get().addToast('error', 'Could not save project changes.');
+    }
+  },
+
+  deleteProject: async (id) => {
+    const removed = get().projects.find((p) => p.id === id);
+    set((s) => ({ projects: s.projects.filter((p) => p.id !== id) }));
+
+    if (!appwriteEnabled()) return;
+    try {
+      await db.deleteProject(id);
+    } catch (err) {
+      console.error('[store] deleteProject:', err);
+      if (removed) set((s) => ({ projects: [...s.projects, removed] }));
+      get().addToast('error', 'Could not delete project — please retry.');
+    }
+  },
+
+  // ── Calendar Events ────────────────────────────────────────────────────────
+  addCalendarEvent: async (event) => {
+    set((s) => ({ calendarEvents: [...s.calendarEvents, event] }));
+
+    const userId = get().user?.id;
+    if (!appwriteEnabled() || !userId) return;
+    try {
+      await db.createCalendarEvent(event, userId);
+    } catch (err) {
+      console.error('[store] addCalendarEvent:', err);
+      set((s) => ({ calendarEvents: s.calendarEvents.filter((e) => e.id !== event.id) }));
+      get().addToast('error', 'Could not save event — please retry.');
+    }
+  },
+
+  deleteCalendarEvent: async (id) => {
+    const removed = get().calendarEvents.find((e) => e.id === id);
+    set((s) => ({ calendarEvents: s.calendarEvents.filter((e) => e.id !== id) }));
+
+    if (!appwriteEnabled()) return;
+    try {
+      await db.deleteCalendarEvent(id);
+    } catch (err) {
+      console.error('[store] deleteCalendarEvent:', err);
+      if (removed) set((s) => ({ calendarEvents: [...s.calendarEvents, removed] }));
+      get().addToast('error', 'Could not delete event — please retry.');
     }
   },
 
@@ -147,6 +230,34 @@ export const useAppStore = create<AppStore>((set, get) => ({
         ),
       }));
       get().addToast('error', 'Could not save habit update.');
+    }
+  },
+
+  addRecurringTask: async (rt) => {
+    set((s) => ({ recurringTasks: [...s.recurringTasks, rt] }));
+
+    const userId = get().user?.id;
+    if (!appwriteEnabled() || !userId) return;
+    try {
+      await db.createRecurringTask(rt, userId);
+    } catch (err) {
+      console.error('[store] addRecurringTask:', err);
+      set((s) => ({ recurringTasks: s.recurringTasks.filter((r) => r.id !== rt.id) }));
+      get().addToast('error', 'Could not save new habit — please retry.');
+    }
+  },
+
+  deleteRecurringTask: async (id) => {
+    const removed = get().recurringTasks.find((r) => r.id === id);
+    set((s) => ({ recurringTasks: s.recurringTasks.filter((r) => r.id !== id) }));
+
+    if (!appwriteEnabled()) return;
+    try {
+      await db.deleteRecurringTask(id);
+    } catch (err) {
+      console.error('[store] deleteRecurringTask:', err);
+      if (removed) set((s) => ({ recurringTasks: [...s.recurringTasks, removed] }));
+      get().addToast('error', 'Could not delete habit — please retry.');
     }
   },
 

@@ -10,10 +10,12 @@ import {
   loadUserData,
   loadUserPreferences,
   seedDefaultProjects,
+  signInWithGoogle,
 } from '@/services/appwriteService';
 import type { User, AppState } from '@/types';
 
 const DEMO_USER: User = {
+  id: 'demo',
   name: 'Nathaniel (Demo)',
   email: 'demo@pacepilot.com',
   streak: 12,
@@ -46,8 +48,10 @@ export const LoginPage: React.FC = () => {
 
     const prefs = await loadUserPreferences();
     setUser({
+      id: appUser.$id,
       name: appUser.name,
       email: appUser.email,
+      avatar: prefs.avatar,
       streak: prefs.streak,
       preferences: {
         startTime: prefs.startTime,
@@ -184,7 +188,7 @@ export const LoginPage: React.FC = () => {
           </div>
 
           <button
-            onClick={handleDemoLogin}
+            onClick={isAppwriteConfigured() ? signInWithGoogle : handleDemoLogin}
             className="w-full bg-white text-deepnavy font-black py-4 rounded-lg flex items-center justify-center gap-3 text-xs uppercase tracking-widest hover:bg-white/90 transition-all shadow-xl"
           >
             <Globe size={16} />

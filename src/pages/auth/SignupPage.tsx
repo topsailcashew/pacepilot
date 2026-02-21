@@ -9,10 +9,12 @@ import {
   getCurrentUser,
   loadUserPreferences,
   seedDefaultProjects,
+  signInWithGoogle,
 } from '@/services/appwriteService';
 import type { User } from '@/types';
 
 const DEMO_USER: User = {
+  id: 'demo',
   name: 'Nathaniel (Demo)',
   email: 'demo@pacepilot.com',
   streak: 0,
@@ -51,8 +53,10 @@ export const SignupPage: React.FC = () => {
 
       const prefs = await loadUserPreferences();
       setUser({
+        id: appUser.$id,
         name: appUser.name,
         email: appUser.email,
+        avatar: prefs.avatar,
         streak: 0,
         preferences: {
           startTime: prefs.startTime,
@@ -65,7 +69,7 @@ export const SignupPage: React.FC = () => {
       const projects = await seedDefaultProjects(appUser.$id);
       initializeData({ projects, tasks: [], calendarEvents: [], recurringTasks: [], dailyReports: [] });
 
-      addToast('success', `Welcome to Pace Pilot, ${appUser.name}! 🚀`);
+      addToast('success', `Welcome to Pace Pilot, ${appUser.name}!`);
       navigate('/');
     } catch (err) {
       console.error('[SignupPage]', err);
@@ -176,7 +180,7 @@ export const SignupPage: React.FC = () => {
         </div>
 
         <button
-          onClick={handleDemoSignup}
+          onClick={isAppwriteConfigured() ? signInWithGoogle : handleDemoSignup}
           className="w-full bg-white/5 border border-white/10 text-white font-black py-4 rounded-lg flex items-center justify-center gap-3 text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
         >
           <Globe size={16} />

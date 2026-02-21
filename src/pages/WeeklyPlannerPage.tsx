@@ -1,15 +1,39 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, ListTodo } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { THEME } from '@/constants';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+/** Return the Monday of the ISO week that contains `date`. */
+function getWeekMonday(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Sun, 1=Mon … 6=Sat
+  const diff = day === 0 ? -6 : 1 - day; // distance to Monday
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 /**
  * Seven-day planner view showing tasks grouped by due date.
+ * Week navigation anchors to Monday–Sunday.
  */
 export const WeeklyPlannerPage: React.FC = () => {
   const tasks = useAppStore((s) => s.tasks);
+  const [weekOffset, setWeekOffset] = useState(0); // 0 = current week
+
+  const today = new Date();
+  const baseMonday = getWeekMonday(today);
+
+  // Shift the base Monday by weekOffset weeks
+  const monday = new Date(baseMonday);
+  monday.setDate(baseMonday.getDate() + weekOffset * 7);
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+
+  const weekLabel = `${monday.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${sunday.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
   return (
     <div className="animate-in fade-in duration-500 pb-12 space-y-10">
@@ -20,17 +44,27 @@ export const WeeklyPlannerPage: React.FC = () => {
             Weekly Planner
           </h3>
           <p className="text-[10px] text-white/30 font-bold uppercase tracking-[0.2em] mt-2">
-            Map out the week ahead
+            {weekLabel}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <button
+            onClick={() => setWeekOffset((o) => o - 1)}
             aria-label="Previous week"
             className={`${THEME.buttonSecondary} p-3 rounded-lg text-white/40 hover:text-white`}
           >
             <ChevronLeft size={20} />
           </button>
+          {weekOffset !== 0 && (
+            <button
+              onClick={() => setWeekOffset(0)}
+              className="text-[9px] font-black uppercase tracking-widest text-pilot-orange hover:text-white px-3 py-2"
+            >
+              Today
+            </button>
+          )}
           <button
+            onClick={() => setWeekOffset((o) => o + 1)}
             aria-label="Next week"
             className={`${THEME.buttonSecondary} p-3 rounded-lg text-white/40 hover:text-white`}
           >
@@ -42,24 +76,46 @@ export const WeeklyPlannerPage: React.FC = () => {
       {/* Day columns */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
         {DAYS.map((day, idx) => {
-          const d = new Date();
-          d.setDate(d.getDate() + idx);
+          const d = new Date(monday);
+          d.setDate(monday.getDate() + idx);
           const dateStr = d.toISOString().split('T')[0];
 
-          // Tasks due on this day; tasks without a due date appear on Monday
+          const isToday =
+            d.getFullYear() === today.getFullYear() &&
+            d.getMonth() === today.getMonth() &&
+            d.getDate() === today.getDate();
+
+          // Tasks due this day; undated tasks appear on Monday of current week only
           const dayTasks = tasks.filter(
             (t) =>
-              t.dueDate === dateStr || (idx === 0 && !t.dueDate)
+              t.dueDate === dateStr ||
+              (idx === 0 && weekOffset === 0 && !t.dueDate)
           );
 
           return (
             <div key={day} className="flex flex-col h-[500px]">
               {/* Day header */}
-              <div className="p-4 bg-white/[0.02] border-t border-x border-white/5 rounded-t-xl text-center">
-                <span className="text-[10px] font-black text-white/20 uppercase tracking-widest block mb-1">
+              <div
+                className={`p-4 border-t border-x border-white/5 rounded-t-xl text-center transition-colors ${
+                  isToday
+                    ? 'bg-pilot-orange/10 border-pilot-orange/30'
+                    : 'bg-white/[0.02]'
+                }`}
+              >
+                <span
+                  className={`text-[10px] font-black uppercase tracking-widest block mb-1 ${
+                    isToday ? 'text-pilot-orange' : 'text-white/20'
+                  }`}
+                >
                   {day}
                 </span>
-                <span className="text-xl font-black text-white">{d.getDate()}</span>
+                <span
+                  className={`text-xl font-black ${
+                    isToday ? 'text-pilot-orange' : 'text-white'
+                  }`}
+                >
+                  {d.getDate()}
+                </span>
               </div>
 
               {/* Task list */}
@@ -75,7 +131,7 @@ export const WeeklyPlannerPage: React.FC = () => {
                   >
                     <span
                       className={`text-[10px] font-bold leading-tight uppercase ${
-                        t.isCompleted ? 'line-through' : 'text-white/70'
+                        t.isCompleted ? 'line-through text-white/30' : 'text-white/70'
                       }`}
                     >
                       {t.title}
@@ -95,11 +151,8 @@ export const WeeklyPlannerPage: React.FC = () => {
                 ))}
 
                 {dayTasks.length === 0 && (
-                  <div className="h-full flex flex-col items-center justify-center opacity-5">
-                    <ListTodo size={24} />
-                    <span className="text-[8px] font-black uppercase tracking-widest mt-2">
-                      Open
-                    </span>
+                  <div className="h-full flex flex-col items-center justify-center opacity-10">
+                    <ListTodo size={20} />
                   </div>
                 )}
               </div>

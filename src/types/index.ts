@@ -13,6 +13,7 @@ export type EisenhowerCategory =
 export type MusicGenre = 'Lo-Fi' | 'Jazz' | 'Synth Wave' | 'Chill Trap';
 
 export interface User {
+  id: string;
   name: string;
   email: string;
   avatar?: string;

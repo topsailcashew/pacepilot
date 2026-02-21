@@ -1,16 +1,34 @@
 import React from 'react';
 import { Menu, Bell } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { useClock } from '@/hooks/useClock';
 
 interface TopBarProps {
   toggleSidebar: () => void;
 }
 
+const ROUTE_TITLES: Record<string, string> = {
+  '/': 'Daily Dashboard',
+  '/planner': 'Weekly Planner',
+  '/projects': 'Projects',
+  '/calendar': 'Calendar',
+  '/recurring': 'Consistent Habits',
+  '/reports': 'Insights',
+  '/profile': 'User Profile',
+};
+
 /**
  * Sticky page header containing the live clock, system status, and notification bell.
+ * Title updates based on the current route.
  */
 export const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
   const now = useClock();
+  const { pathname } = useLocation();
+
+  // Match /projects/:id → 'Projects'
+  const title =
+    ROUTE_TITLES[pathname] ??
+    (pathname.startsWith('/projects') ? 'Projects' : 'Pace Pilot');
 
   return (
     <header className="flex items-center justify-between mb-10 px-2 shrink-0">
@@ -26,7 +44,7 @@ export const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
 
         <div>
           <h2 className="text-2xl font-black text-white tracking-tight uppercase">
-            Daily Dashboard
+            {title}
           </h2>
           <p className="text-[10px] text-white/30 font-bold mt-1 uppercase tracking-[0.2em]">
             {now.toLocaleDateString()} • {now.toLocaleTimeString()}

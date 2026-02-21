@@ -5,6 +5,8 @@ import {
   getCurrentUser,
   loadUserData,
   loadUserPreferences,
+  saveUserPreferences,
+  fetchGoogleAvatar,
   seedDefaultProjects,
 } from '@/services/appwriteService';
 import type { AppState, User } from '@/types';
@@ -21,6 +23,7 @@ async function loadMockData(
   const data: Partial<AppState> = await res.json();
   initializeData({ ...data, currentStreak: 12 });
   setUser({
+    id: 'demo',
     name: 'Nathaniel (Demo)',
     email: 'demo@pacepilot.com',
     streak: 12,
@@ -39,9 +42,22 @@ async function loadAppwriteData(
 
   const prefs = await loadUserPreferences();
 
+  // On first Google login, prefs.avatar will be empty — pull it from Google
+  // and persist it so subsequent loads don't need another API call.
+  let avatar = prefs.avatar;
+  if (!avatar) {
+    const googleAvatar = await fetchGoogleAvatar();
+    if (googleAvatar) {
+      avatar = googleAvatar;
+      await saveUserPreferences({ ...prefs, avatar }).catch(() => {/* non-fatal */});
+    }
+  }
+
   setUser({
+    id: appUser.$id,
     name: appUser.name,
     email: appUser.email,
+    avatar,
     streak: prefs.streak,
     preferences: {
       startTime: prefs.startTime,

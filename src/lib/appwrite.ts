@@ -1,4 +1,4 @@
-import { Client, Databases, Account, ID, Permission, Role } from 'appwrite';
+import { Client, Databases, Account, Storage, ID, Permission, Role } from 'appwrite';
 
 // ─── Client ──────────────────────────────────────────────────────────────────
 
@@ -10,10 +10,12 @@ export const client = new Client().setEndpoint(ENDPOINT).setProject(PROJECT_ID);
 
 export const account = new Account(client);
 export const databases = new Databases(client);
+export const storage = new Storage(client);
 
 // ─── Resource IDs (set via env vars) ─────────────────────────────────────────
 
 export const DB_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID ?? '';
+export const STORAGE_BUCKET_ID = import.meta.env.VITE_APPWRITE_STORAGE_BUCKET_ID ?? '';
 
 export const COLLECTIONS = {
   tasks: import.meta.env.VITE_APPWRITE_TASKS_COLLECTION_ID ?? '',

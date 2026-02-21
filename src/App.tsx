@@ -47,7 +47,7 @@ const AppShell: React.FC = () => {
         }`}
       >
         {user && (
-          <TopBar toggleSidebar={() => setIsSidebarOpen(true)} />
+          <TopBar toggleSidebar={() => setIsSidebarOpen((o: boolean) => !o)} />
         )}
 
         <div className="flex-1 overflow-y-auto custom-scrollbar no-scrollbar pr-2">

@@ -12,11 +12,13 @@
  *    set to document-level permissions.
  */
 
-import { Models, Query } from 'appwrite';
+import { Models, Query, OAuthProvider } from 'appwrite';
 import {
   account,
   databases,
+  storage,
   DB_ID,
+  STORAGE_BUCKET_ID,
   COLLECTIONS,
   ID,
   Permission,
@@ -129,26 +131,87 @@ export async function getCurrentUser(): Promise<Models.User<Models.Preferences> 
 }
 
 /**
- * Persist user preferences (streak, working hours, daily goal) using
+ * Trigger Google OAuth2 sign-in via Appwrite.
+ * This causes a full browser redirect — no await needed.
+ */
+export function signInWithGoogle(): void {
+  const origin = window.location.origin;
+  account.createOAuth2Session(
+    OAuthProvider.Google,
+    `${origin}/#/`,
+    `${origin}/#/login`
+  );
+}
+
+/** Update the display name on the current Appwrite account. */
+export async function updateUserName(name: string): Promise<void> {
+  await account.updateName(name);
+}
+
+/**
+ * Upload a profile picture to Appwrite Storage.
+ * Returns the public preview URL string.
+ */
+export async function uploadAvatar(file: File, userId: string): Promise<string> {
+  const created = await storage.createFile(
+    STORAGE_BUCKET_ID,
+    ID.unique(),
+    file,
+    [
+      Permission.read(Role.any()),
+      Permission.update(Role.user(userId)),
+      Permission.delete(Role.user(userId)),
+    ]
+  );
+  return storage.getFilePreview(STORAGE_BUCKET_ID, created.$id).toString();
+}
+
+/**
+ * Persist user preferences (streak, working hours, daily goal, avatar) using
  * Appwrite's built-in user-prefs store — no extra collection needed.
  */
 export async function saveUserPreferences(
-  prefs: Partial<User['preferences'] & { streak: number }>
+  prefs: Partial<User['preferences'] & { streak: number; avatar?: string }>
 ): Promise<void> {
   await account.updatePrefs(prefs);
 }
 
 /** Load persisted user preferences, falling back to sensible defaults. */
 export async function loadUserPreferences(): Promise<
-  User['preferences'] & { streak: number }
+  User['preferences'] & { streak: number; avatar?: string }
 > {
-  const raw = await account.getPrefs<User['preferences'] & { streak: number }>();
+  const raw = await account.getPrefs<User['preferences'] & { streak: number; avatar?: string }>();
   return {
     startTime: raw.startTime ?? '08:00',
     endTime: raw.endTime ?? '18:00',
     dailyGoal: raw.dailyGoal ?? 5,
     streak: raw.streak ?? 0,
+    avatar: raw.avatar,
   };
+}
+
+/**
+ * If the current session was created via Google OAuth, fetch the user's
+ * Google profile picture using the stored access token.
+ * Returns null if not a Google user, the token is missing/expired, or the
+ * request fails — callers should treat null as "no avatar available".
+ */
+export async function fetchGoogleAvatar(): Promise<string | null> {
+  try {
+    const identities = await account.listIdentities();
+    const google = identities.identities.find((i) => i.provider === 'google');
+    if (!google?.providerAccessToken) return null;
+
+    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${google.providerAccessToken}` },
+    });
+    if (!res.ok) return null;
+
+    const data = await res.json() as { picture?: string };
+    return data.picture ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Data loading ─────────────────────────────────────────────────────────────
@@ -241,7 +304,33 @@ export async function createProject(
   );
 }
 
+export async function updateProject(
+  id: string,
+  updates: Partial<Project>
+): Promise<void> {
+  const { id: _id, ...data } = updates as Project;
+  await databases.updateDocument(DB_ID, COLLECTIONS.projects, id, data);
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  await databases.deleteDocument(DB_ID, COLLECTIONS.projects, id);
+}
+
 // ─── Recurring Task CRUD ──────────────────────────────────────────────────────
+
+export async function createRecurringTask(
+  rt: RecurringTask,
+  userId: string
+): Promise<void> {
+  const { id, ...data } = rt;
+  await databases.createDocument(
+    DB_ID,
+    COLLECTIONS.recurringTasks,
+    id,
+    { ...data, userId },
+    userPermissions(userId)
+  );
+}
 
 export async function updateRecurringTask(
   id: string,
@@ -251,6 +340,30 @@ export async function updateRecurringTask(
     status,
     last: new Date().toLocaleDateString(),
   });
+}
+
+export async function deleteRecurringTask(id: string): Promise<void> {
+  await databases.deleteDocument(DB_ID, COLLECTIONS.recurringTasks, id);
+}
+
+// ─── Calendar Event CRUD ─────────────────────────────────────────────────────
+
+export async function createCalendarEvent(
+  event: CalendarEvent,
+  userId: string
+): Promise<void> {
+  const { id, ...data } = event;
+  await databases.createDocument(
+    DB_ID,
+    COLLECTIONS.calendarEvents,
+    id,
+    { ...data, userId },
+    userPermissions(userId)
+  );
+}
+
+export async function deleteCalendarEvent(id: string): Promise<void> {
+  await databases.deleteDocument(DB_ID, COLLECTIONS.calendarEvents, id);
 }
 
 // ─── Daily Report CRUD ────────────────────────────────────────────────────────
