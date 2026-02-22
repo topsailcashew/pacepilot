@@ -9,6 +9,7 @@ import {
   fetchGoogleAvatar,
   seedDefaultProjects,
 } from '@/services/appwriteService';
+import { DEMO_USER } from '@/constants';
 import type { AppState, User } from '@/types';
 
 // ── Mock data fallback ─────────────────────────────────────────────────────────
@@ -21,14 +22,8 @@ async function loadMockData(
   const res = await fetch('/Mockdata.json');
   if (!res.ok) throw new Error(`Mock data fetch failed: HTTP ${res.status}`);
   const data: Partial<AppState> = await res.json();
-  initializeData({ ...data, currentStreak: 12 });
-  setUser({
-    id: 'demo',
-    name: 'Nathaniel (Demo)',
-    email: 'demo@pacepilot.com',
-    streak: 12,
-    preferences: { startTime: '08:00', endTime: '18:00', dailyGoal: 8 },
-  });
+  initializeData(data);
+  setUser(DEMO_USER);
 }
 
 // ── Appwrite data loader ───────────────────────────────────────────────────────
@@ -74,7 +69,7 @@ async function loadAppwriteData(
     data = { ...data, projects: defaultProjects };
   }
 
-  initializeData({ ...data, currentStreak: prefs.streak });
+  initializeData(data);
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────

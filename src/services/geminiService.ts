@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import { Task, EnergyLevel, DailyReport, TaskSuggestion } from '@/types';
+import { Task, EnergyLevel, DailyReport } from '@/types';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
 
@@ -21,57 +21,6 @@ const MODELS = {
   flash: 'gemini-2.0-flash',
   pro: 'gemini-1.5-pro',
 } as const;
-
-/**
- * Suggests which tasks the user should focus on given their current energy level.
- *
- * @param tasks - All tasks (completed ones are filtered out internally)
- * @param energy - The user's current energy level
- * @returns An array of up to 3 task suggestions, or [] on error
- */
-export async function getTaskSuggestions(
-  tasks: Task[],
-  energy: EnergyLevel
-): Promise<TaskSuggestion[]> {
-  const pending = tasks.filter((t) => !t.isCompleted);
-  if (pending.length === 0) return [];
-
-  const prompt = `
-    Based on the user's current ${energy} energy level, suggest which of these tasks they should prioritize.
-    Tasks: ${JSON.stringify(pending)}
-
-    Provide up to 3 suggestions. Explain why each task fits the current energy level.
-    Be encouraging and supportive.
-  `;
-
-  try {
-    const ai = getClient();
-    const response = await ai.models.generateContent({
-      model: MODELS.flash,
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              taskId: { type: Type.STRING },
-              reason: { type: Type.STRING },
-              vibeCheck: { type: Type.STRING },
-            },
-            required: ['taskId', 'reason', 'vibeCheck'],
-          },
-        },
-      },
-    });
-
-    return JSON.parse(response.text ?? '[]') as TaskSuggestion[];
-  } catch (error) {
-    console.error('[geminiService] getTaskSuggestions failed:', error);
-    return [];
-  }
-}
 
 /**
  * Generates a friendly end-of-day summary for the user.

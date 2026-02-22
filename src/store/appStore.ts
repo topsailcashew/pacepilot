@@ -58,7 +58,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   recurringTasks: [],
   energyLevel: null,
   dailyReports: [],
-  currentStreak: 0,
   user: null,
   isLoading: true,
   toasts: [],

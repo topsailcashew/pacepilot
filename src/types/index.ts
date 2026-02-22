@@ -10,8 +10,6 @@ export type EisenhowerCategory =
   | 'Urgent, Not Important'
   | 'Not Urgent, Not Important';
 
-export type MusicGenre = 'Lo-Fi' | 'Jazz' | 'Synth Wave' | 'Chill Trap';
-
 export interface User {
   id: string;
   name: string;
@@ -89,15 +87,7 @@ export interface AppState {
   recurringTasks: RecurringTask[];
   energyLevel: EnergyLevel | null;
   dailyReports: DailyReport[];
-  currentStreak: number;
   user: User | null;
-}
-
-/** Shape of AI task suggestion returned by Gemini */
-export interface TaskSuggestion {
-  taskId: string;
-  reason: string;
-  vibeCheck: string;
 }
 
 /** Shape of a toast notification */

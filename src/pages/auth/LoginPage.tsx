@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Zap, Mail, Lock, Globe, Loader2 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
-import { THEME } from '@/constants';
+import { THEME, DEMO_USER } from '@/constants';
 import { isAppwriteConfigured } from '@/lib/appwrite';
 import {
   logIn,
@@ -12,15 +12,7 @@ import {
   seedDefaultProjects,
   signInWithGoogle,
 } from '@/services/appwriteService';
-import type { User, AppState } from '@/types';
-
-const DEMO_USER: User = {
-  id: 'demo',
-  name: 'Nathaniel (Demo)',
-  email: 'demo@pacepilot.com',
-  streak: 12,
-  preferences: { startTime: '08:00', endTime: '18:00', dailyGoal: 8 },
-};
+import type { AppState } from '@/types';
 
 /**
  * Login page.
@@ -65,7 +57,7 @@ export const LoginPage: React.FC = () => {
       const projects = await seedDefaultProjects(appUser.$id);
       data = { ...data, projects } as Partial<AppState>;
     }
-    initializeData({ ...data, currentStreak: prefs.streak });
+    initializeData(data);
     navigate('/');
   };
 

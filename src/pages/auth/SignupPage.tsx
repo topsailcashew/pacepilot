@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Zap, Globe, Loader2 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
-import { THEME } from '@/constants';
+import { THEME, DEMO_USER } from '@/constants';
 import { isAppwriteConfigured } from '@/lib/appwrite';
 import {
   signUp,
@@ -11,15 +11,6 @@ import {
   seedDefaultProjects,
   signInWithGoogle,
 } from '@/services/appwriteService';
-import type { User } from '@/types';
-
-const DEMO_USER: User = {
-  id: 'demo',
-  name: 'Nathaniel (Demo)',
-  email: 'demo@pacepilot.com',
-  streak: 0,
-  preferences: { startTime: '08:00', endTime: '18:00', dailyGoal: 5 },
-};
 
 /**
  * Registration page.
