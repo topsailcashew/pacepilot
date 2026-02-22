@@ -51,7 +51,7 @@ async function syncWithGoogle(
   data: Partial<AppState>,
   userId: string,
   setGoogleAccessToken: (token: string | null) => void,
-  addCalendarEventToStore: (event: CalendarEvent) => Promise<void>,
+  initializeData: (data: Partial<AppState>) => void,
   addToast: (type: 'success' | 'error' | 'info', message: string) => void
 ): Promise<void> {
   const token = await getGoogleAccessToken();
@@ -70,6 +70,7 @@ async function syncWithGoogle(
       (data.calendarEvents ?? []).map((e) => e.googleEventId).filter(Boolean)
     );
 
+    const importedEvents: CalendarEvent[] = [];
     for (const ge of googleEvents) {
       if (existingGoogleIds.has(ge.googleEventId)) continue;
 
@@ -85,8 +86,14 @@ async function syncWithGoogle(
 
       // Write to Appwrite directly (bypasses Google push — it came FROM Google)
       await createCalendarEvent(newEvent, userId).catch(() => {/* non-fatal */});
-      // Update store optimistically
-      await addCalendarEventToStore(newEvent).catch(() => {/* non-fatal */});
+      importedEvents.push(newEvent);
+    }
+
+    // Merge into store state in a single call — no Appwrite or Google side-effects
+    if (importedEvents.length > 0) {
+      initializeData({
+        calendarEvents: [...(data.calendarEvents ?? []), ...importedEvents],
+      });
     }
   } catch (err) {
     console.warn('[useDataLoader] Google Calendar sync failed:', err);
@@ -118,7 +125,6 @@ async function loadAppwriteData(
   initializeData: (data: Partial<AppState>) => void,
   setUser: (user: User | null) => void,
   setGoogleAccessToken: (token: string | null) => void,
-  addCalendarEventToStore: (event: CalendarEvent) => Promise<void>,
   addToast: (type: 'success' | 'error' | 'info', message: string) => void
 ): Promise<void> {
   const appUser = await getCurrentUser();
@@ -161,7 +167,7 @@ async function loadAppwriteData(
   initializeData(data);
 
   // Run Google sync in the background (non-blocking — errors are toasted)
-  syncWithGoogle(data, appUser.$id, setGoogleAccessToken, addCalendarEventToStore, addToast)
+  syncWithGoogle(data, appUser.$id, setGoogleAccessToken, initializeData, addToast)
     .catch((err) => console.error('[useDataLoader] Unexpected sync error:', err));
 }
 
@@ -184,7 +190,6 @@ export function useDataLoader(): void {
     setUser,
     addToast,
     setGoogleAccessToken,
-    addCalendarEvent,
   } = useAppStore();
 
   useEffect(() => {
@@ -196,7 +201,6 @@ export function useDataLoader(): void {
             initializeData,
             setUser,
             setGoogleAccessToken,
-            addCalendarEvent,
             addToast
           );
         } else {

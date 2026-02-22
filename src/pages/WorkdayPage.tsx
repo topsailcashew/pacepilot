@@ -5,14 +5,11 @@ import {
   CheckCircle2,
   Sparkles,
   Zap,
-  Settings,
-  Play,
-  SkipBack,
-  SkipForward,
 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { generateDailyReport } from '@/services/geminiService';
 import { PomodoroTimer } from '@/components/timer/PomodoroTimer';
+import { WhiteNoisePlayer } from '@/components/audio/WhiteNoisePlayer';
 import { TaskItem } from '@/components/tasks/TaskItem';
 import { Modal } from '@/components/ui/Modal';
 import { ENERGY_LEVELS, THEME } from '@/constants';
@@ -147,34 +144,12 @@ export const WorkdayPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Acoustic Shield (music player placeholder) */}
+          {/* Acoustic Shield — procedural ambient noise */}
           <div className="pt-8 border-t border-white/5 flex-1">
-            <div className="flex items-center justify-between mb-4 px-1">
-              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">
-                Acoustic Shield
-              </span>
-              <button className="p-2 bg-white/5 rounded-lg text-white/40 hover:text-pilot-orange transition-all">
-                <Settings size={14} />
-              </button>
-            </div>
-            <div className="flex flex-col items-center gap-6">
-              <div className="flex items-center gap-8">
-                <SkipBack
-                  size={18}
-                  className="text-white/20 cursor-pointer hover:text-white"
-                />
-                <button className="bg-pilot-orange text-white p-4 rounded-full shadow-xl shadow-pilot-orange/30 hover:scale-105 active:scale-95 transition-all">
-                  <Play size={20} fill="currentColor" />
-                </button>
-                <SkipForward
-                  size={18}
-                  className="text-white/20 cursor-pointer hover:text-white"
-                />
-              </div>
-              <div className="w-full bg-white/5 h-1 rounded-full relative">
-                <div className="absolute top-0 left-0 h-full w-[65%] bg-pilot-orange rounded-full" />
-              </div>
-            </div>
+            <span className="block text-[10px] font-black text-white/40 uppercase tracking-widest mb-4 px-1">
+              Acoustic Shield
+            </span>
+            <WhiteNoisePlayer />
           </div>
         </div>
       </div>
