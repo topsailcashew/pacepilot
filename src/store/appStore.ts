@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { AppState, EnergyLevel, Task, Project, RecurringTask, CalendarEvent, User, Toast, RecurringStatus } from '@/types';
 import * as db from '@/services/appwriteService';
+import { createGoogleCalendarEvent, deleteGoogleCalendarEvent } from '@/services/googleCalendarService';
+import { completeGoogleTask, deleteGoogleTask } from '@/services/googleTasksService';
 
 let toastIdCounter = 0;
 
@@ -25,6 +27,7 @@ interface AppStore extends AppState {
 
   // Calendar events
   addCalendarEvent: (event: CalendarEvent) => Promise<void>;
+  updateCalendarEvent: (id: string, updates: Partial<CalendarEvent>) => Promise<void>;
   deleteCalendarEvent: (id: string) => Promise<void>;
 
   // Energy
@@ -34,6 +37,9 @@ interface AppStore extends AppState {
   toggleRecurringTask: (id: string) => Promise<void>;
   addRecurringTask: (rt: RecurringTask) => Promise<void>;
   deleteRecurringTask: (id: string) => Promise<void>;
+
+  // Google sync
+  setGoogleAccessToken: (token: string | null) => void;
 
   // Bootstrap
   initializeData: (data: Partial<AppState>) => void;
@@ -59,6 +65,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   energyLevel: null,
   dailyReports: [],
   user: null,
+  googleAccessToken: null,
   isLoading: true,
   toasts: [],
 
@@ -76,6 +83,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((s) => ({
       tasks: s.tasks.map((t) => (t.id === id ? { ...t, isCompleted: next } : t)),
     }));
+
+    // Sync completion to Google Tasks (non-blocking)
+    const token = get().googleAccessToken;
+    if (token && next && task.googleTaskId) {
+      completeGoogleTask(token, task.googleTaskId).catch(() => {/* non-fatal */});
+    }
 
     if (!appwriteEnabled()) return;
     try {
@@ -120,6 +133,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   deleteTask: async (id) => {
     const removed = get().tasks.find((t) => t.id === id);
     set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+
+    // Delete from Google Tasks (non-blocking)
+    const token = get().googleAccessToken;
+    if (token && removed?.googleTaskId) {
+      deleteGoogleTask(token, removed.googleTaskId).catch(() => {/* non-fatal */});
+    }
 
     if (!appwriteEnabled()) return;
     try {
@@ -182,6 +201,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!appwriteEnabled() || !userId) return;
     try {
       await db.createCalendarEvent(event, userId);
+      // Push to Google Calendar (non-blocking)
+      const token = get().googleAccessToken;
+      if (token) {
+        createGoogleCalendarEvent(token, event)
+          .then((googleEventId) => {
+            if (googleEventId) get().updateCalendarEvent(event.id, { googleEventId });
+          })
+          .catch(() => {/* non-fatal */});
+      }
     } catch (err) {
       console.error('[store] addCalendarEvent:', err);
       set((s) => ({ calendarEvents: s.calendarEvents.filter((e) => e.id !== event.id) }));
@@ -189,9 +217,28 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  updateCalendarEvent: async (id, updates) => {
+    set((s) => ({
+      calendarEvents: s.calendarEvents.map((e) => (e.id === id ? { ...e, ...updates } : e)),
+    }));
+
+    if (!appwriteEnabled()) return;
+    try {
+      await db.updateCalendarEvent(id, updates);
+    } catch (err) {
+      console.error('[store] updateCalendarEvent:', err);
+    }
+  },
+
   deleteCalendarEvent: async (id) => {
     const removed = get().calendarEvents.find((e) => e.id === id);
     set((s) => ({ calendarEvents: s.calendarEvents.filter((e) => e.id !== id) }));
+
+    // Delete from Google Calendar (non-blocking)
+    const token = get().googleAccessToken;
+    if (token && removed?.googleEventId) {
+      deleteGoogleCalendarEvent(token, removed.googleEventId).catch(() => {/* non-fatal */});
+    }
 
     if (!appwriteEnabled()) return;
     try {
@@ -259,6 +306,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
       get().addToast('error', 'Could not delete habit — please retry.');
     }
   },
+
+  // ── Google sync ────────────────────────────────────────────────────────────
+  setGoogleAccessToken: (token) => set({ googleAccessToken: token }),
 
   // ── Bootstrap ──────────────────────────────────────────────────────────────
   initializeData: (data) => set((s) => ({ ...s, ...data })),

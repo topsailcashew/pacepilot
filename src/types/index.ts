@@ -36,6 +36,7 @@ export interface Task {
   isRecurring?: boolean;
   recurringInterval?: RecurringInterval;
   eisenhower?: EisenhowerCategory;
+  googleTaskId?: string;   // set after push to Google Tasks
 }
 
 export interface Project {
@@ -47,11 +48,12 @@ export interface Project {
 
 export interface CalendarEvent {
   id: string;
-  day: number;
+  eventDate: string;       // ISO date "YYYY-MM-DD"
   title: string;
   color: string;
   time: string;
   loc: string;
+  googleEventId?: string;  // set after push to Google Calendar
 }
 
 export interface RecurringTask {
@@ -88,6 +90,7 @@ export interface AppState {
   energyLevel: EnergyLevel | null;
   dailyReports: DailyReport[];
   user: User | null;
+  googleAccessToken: string | null;
 }
 
 /** Shape of a toast notification */

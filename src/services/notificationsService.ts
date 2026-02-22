@@ -84,9 +84,9 @@ export function computeNotifications(
       href: '/',
     }));
 
-  // 2. Today's calendar events (day-of-month only — matches CalendarPage limitation)
+  // 2. Today's calendar events — matched by full ISO date
   const eventNotifications: AppNotification[] = calendarEvents
-    .filter((e) => e.day === now.getDate())
+    .filter((e) => e.eventDate === todayIso)
     .map((e) => ({
       id: `event-${e.id}`,
       type: 'calendar_event' as const,

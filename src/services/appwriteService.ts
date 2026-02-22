@@ -70,8 +70,11 @@ function mapProject(doc: Models.Document): Project {
   return fromDoc<Project>(doc);
 }
 
-function mapCalendarEvent(doc: Models.Document): CalendarEvent {
-  return fromDoc<CalendarEvent>(doc);
+function mapCalendarEvent(doc: Models.Document): CalendarEvent | null {
+  const event = fromDoc<CalendarEvent>(doc);
+  // Filter out legacy documents that predate the eventDate field
+  if (!event.eventDate) return null;
+  return event;
 }
 
 function mapRecurringTask(doc: Models.Document): RecurringTask {
@@ -139,7 +142,11 @@ export function signInWithGoogle(): void {
   account.createOAuth2Session(
     OAuthProvider.Google,
     `${origin}/#/`,
-    `${origin}/#/login`
+    `${origin}/#/login`,
+    [
+      'https://www.googleapis.com/auth/calendar',
+      'https://www.googleapis.com/auth/tasks',
+    ]
   );
 }
 
@@ -237,7 +244,10 @@ export async function loadUserData(
   return {
     tasks: tasksRes.documents.map(mapTask),
     projects: projectsRes.documents.map(mapProject),
-    calendarEvents: calendarRes.documents.map(mapCalendarEvent),
+    calendarEvents: calendarRes.documents.flatMap((d) => {
+      const e = mapCalendarEvent(d);
+      return e ? [e] : [];
+    }),
     recurringTasks: recurringRes.documents.map(mapRecurringTask),
     dailyReports: reportsRes.documents.map(mapDailyReport),
   };
@@ -360,6 +370,14 @@ export async function createCalendarEvent(
     { ...data, userId },
     userPermissions(userId)
   );
+}
+
+export async function updateCalendarEvent(
+  id: string,
+  updates: Partial<CalendarEvent>
+): Promise<void> {
+  const { id: _id, ...data } = updates as CalendarEvent;
+  await databases.updateDocument(DB_ID, COLLECTIONS.calendarEvents, id, data);
 }
 
 export async function deleteCalendarEvent(id: string): Promise<void> {

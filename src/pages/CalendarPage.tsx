@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
-import { Modal } from '@/components/ui/Modal';
+import { AddEventModal } from '@/components/ui/AddEventModal';
 import { THEME } from '@/constants';
 import type { CalendarEvent } from '@/types';
 
@@ -10,17 +10,11 @@ const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
-const EVENT_COLORS = [
-  { label: 'Orange', value: 'bg-pilot-orange' },
-  { label: 'Blue', value: 'bg-blue-500' },
-  { label: 'Green', value: 'bg-green-500' },
-  { label: 'Purple', value: 'bg-purple-500' },
-  { label: 'Pink', value: 'bg-pink-500' },
-];
 
 /**
  * Calendar page with a proper month grid, month navigation,
  * today highlighting, and an Add Event modal.
+ * Events are keyed by full ISO date (YYYY-MM-DD), not day-of-month.
  */
 export const CalendarPage: React.FC = () => {
   const { calendarEvents, addCalendarEvent, deleteCalendarEvent, addToast } = useAppStore();
@@ -28,8 +22,7 @@ export const CalendarPage: React.FC = () => {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-indexed
-  const [addModalOpen, setAddModalOpen] = useState(false);
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   // Month metadata
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -46,26 +39,17 @@ export const CalendarPage: React.FC = () => {
     else setViewMonth((m) => m + 1);
   };
 
+  const toIsoDate = (day: number) =>
+    `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
   const openAdd = (day?: number) => {
-    setSelectedDay(day ?? null);
-    setAddModalOpen(true);
+    setSelectedDate(day != null ? toIsoDate(day) : today.toISOString().slice(0, 10));
   };
 
-  const handleAddEvent = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const event: CalendarEvent = {
-      id: crypto.randomUUID(),
-      day: Number(fd.get('day')),
-      title: (fd.get('title') as string).trim(),
-      time: (fd.get('time') as string) || '',
-      loc: (fd.get('loc') as string).trim() || '',
-      color: (fd.get('color') as string) || 'bg-pilot-orange',
-    };
-    if (!event.title || !event.day) return;
+  const handleAddEvent = (event: CalendarEvent) => {
     addCalendarEvent(event);
     addToast('success', `"${event.title}" added to calendar.`);
-    setAddModalOpen(false);
+    setSelectedDate(null);
   };
 
   const handleDelete = (e: React.MouseEvent, ev: CalendarEvent) => {
@@ -149,7 +133,8 @@ export const CalendarPage: React.FC = () => {
 
         {/* Day cells */}
         {days.map((day) => {
-          const dayEvents = calendarEvents.filter((e) => e.day === day);
+          const isoDate = toIsoDate(day);
+          const dayEvents = calendarEvents.filter((e) => e.eventDate === isoDate);
           const isToday = isCurrentMonth && day === today.getDate();
 
           return (
@@ -185,7 +170,6 @@ export const CalendarPage: React.FC = () => {
                   >
                     <div
                       className="flex-1 p-1.5 bg-pilot-orange/10 border-l-2 border-pilot-orange rounded text-[8px] font-bold text-white/70 truncate uppercase"
-                      style={{}}
                       title={`${ev.title}${ev.time ? ` — ${ev.time}` : ''}${ev.loc ? ` @ ${ev.loc}` : ''}`}
                     >
                       {ev.title}
@@ -206,87 +190,12 @@ export const CalendarPage: React.FC = () => {
       </div>
 
       {/* Add Event Modal */}
-      <Modal isOpen={addModalOpen} onClose={() => setAddModalOpen(false)} title="Add Event">
-        <form onSubmit={handleAddEvent} className="space-y-5">
-          <div className="space-y-2">
-            <label className={THEME.label} htmlFor="ev-title">Event Title</label>
-            <input
-              id="ev-title"
-              name="title"
-              type="text"
-              required
-              className={`${THEME.input} w-full`}
-              placeholder="E.G. TEAM SYNC"
-              autoFocus
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className={THEME.label} htmlFor="ev-day">Day</label>
-              <input
-                id="ev-day"
-                name="day"
-                type="number"
-                required
-                min={1}
-                max={daysInMonth}
-                defaultValue={selectedDay ?? ''}
-                className={`${THEME.input} w-full`}
-                placeholder="1–31"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className={THEME.label} htmlFor="ev-time">Time</label>
-              <input
-                id="ev-time"
-                name="time"
-                type="time"
-                className={`${THEME.input} w-full`}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className={THEME.label} htmlFor="ev-loc">Location</label>
-            <input
-              id="ev-loc"
-              name="loc"
-              type="text"
-              className={`${THEME.input} w-full`}
-              placeholder="E.G. CONFERENCE ROOM A"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className={THEME.label}>Color</label>
-            <div className="flex gap-3">
-              {EVENT_COLORS.map((c) => (
-                <label key={c.value} className="cursor-pointer">
-                  <input type="radio" name="color" value={c.value} className="sr-only" defaultChecked={c.value === 'bg-pilot-orange'} />
-                  <div className={`w-7 h-7 rounded-full ${c.value} ring-2 ring-transparent has-[:checked]:ring-white ring-offset-2 ring-offset-deepnavy`} />
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <button
-              type="submit"
-              className={`${THEME.buttonPrimary} flex-1 py-3 text-xs font-black uppercase tracking-widest`}
-            >
-              Add Event
-            </button>
-            <button
-              type="button"
-              onClick={() => setAddModalOpen(false)}
-              className={`${THEME.buttonSecondary} px-6 py-3 text-xs font-black uppercase tracking-widest`}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </Modal>
+      <AddEventModal
+        isOpen={selectedDate !== null}
+        onClose={() => setSelectedDate(null)}
+        defaultDate={selectedDate ?? today.toISOString().slice(0, 10)}
+        onSubmit={handleAddEvent}
+      />
     </div>
   );
 };
