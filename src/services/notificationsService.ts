@@ -72,6 +72,7 @@ export function computeNotifications(
 ): AppNotification[] {
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
+  const todayIso = now.toISOString().split('T')[0];
 
   // 1. Overdue tasks — mirrors insightsService.ts overdue logic exactly
   const overdueNotifications: AppNotification[] = tasks
@@ -109,7 +110,6 @@ export function computeNotifications(
     }));
 
   // 4. Daily report reminder — only surfaces after 3pm if no report filed today
-  const todayIso = now.toISOString().split('T')[0];
   const hasReportToday = dailyReports.some((r) => r.date === todayIso);
   const reportNotifications: AppNotification[] =
     !hasReportToday && now.getHours() >= 15
