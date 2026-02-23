@@ -15,7 +15,8 @@
             "installCommand": "npm install",
             "enabled": true,
             "logging": true,
-            "timeout": 30
+            "timeout": 30,
+            "specification": "s-0.5vcpu-512mb"
         }
     ]
 }
