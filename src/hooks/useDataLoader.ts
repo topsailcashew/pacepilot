@@ -9,14 +9,11 @@ import {
   fetchGoogleAvatar,
   seedDefaultProjects,
   createCalendarEvent,
-  updateCalendarEvent,
-  updateTask,
 } from '@/services/appwriteService';
 import {
   getGoogleAccessToken,
   fetchGoogleCalendarEvents,
 } from '@/services/googleCalendarService';
-import { createGoogleTask } from '@/services/googleTasksService';
 import { DEMO_USER } from '@/constants';
 import type { AppState, User, CalendarEvent } from '@/types';
 
@@ -37,13 +34,11 @@ async function loadMockData(
 // ── Google sync ────────────────────────────────────────────────────────────────
 
 /**
- * After Appwrite data loads, pull Google Calendar events into Appwrite and
- * push PacePilot tasks to Google Tasks.
+ * After Appwrite data loads, pull Google Calendar events into Appwrite + the store.
  *
- * - Calendar pull: fetches Google events for the next 60 days; any event not
- *   already tracked by googleEventId is imported into Appwrite + the store.
- * - Tasks push: tasks without a googleTaskId are pushed to Google Tasks; the
- *   returned ID is written back to Appwrite so future syncs skip them.
+ * Only events that are successfully persisted to Appwrite are added to the
+ * local store — this prevents re-attempting the same writes on every page load
+ * when the Appwrite schema is not yet configured.
  *
  * All errors are caught and non-fatal: the app continues with Appwrite data.
  */
@@ -59,7 +54,7 @@ async function syncWithGoogle(
 
   setGoogleAccessToken(token);
 
-  // ── 1. Calendar pull ────────────────────────────────────────────────────────
+  // ── Calendar pull ─────────────────────────────────────────────────────────
   try {
     const now = new Date();
     const timeMin = now.toISOString();
@@ -84,9 +79,15 @@ async function syncWithGoogle(
         googleEventId: ge.googleEventId,
       };
 
-      // Write to Appwrite directly (bypasses Google push — it came FROM Google)
-      await createCalendarEvent(newEvent, userId).catch(() => {/* non-fatal */});
-      importedEvents.push(newEvent);
+      // Only add to local state if the Appwrite write succeeds.
+      // If the schema isn't configured yet (400), skip silently — this prevents
+      // the same events being re-attempted on every page load.
+      try {
+        await createCalendarEvent(newEvent, userId);
+        importedEvents.push(newEvent);
+      } catch {
+        // Schema not ready — skip without adding to store
+      }
     }
 
     // Merge into store state in a single call — no Appwrite or Google side-effects
@@ -98,24 +99,6 @@ async function syncWithGoogle(
   } catch (err) {
     console.warn('[useDataLoader] Google Calendar sync failed:', err);
     addToast('error', 'Google Calendar sync unavailable — sign out and back in to reconnect.');
-  }
-
-  // ── 2. Tasks push ───────────────────────────────────────────────────────────
-  try {
-    const pendingTasks = (data.tasks ?? []).filter(
-      (t) => !t.isCompleted && !t.googleTaskId
-    );
-
-    for (const t of pendingTasks) {
-      const googleTaskId = await createGoogleTask(token, t.title).catch(() => null);
-      if (googleTaskId) {
-        await updateTask(t.id, { googleTaskId }).catch(() => {/* non-fatal */});
-        // Note: store will reflect this on next load; for the current session
-        // the task just won't have googleTaskId until refreshed — acceptable.
-      }
-    }
-  } catch (err) {
-    console.warn('[useDataLoader] Google Tasks sync failed:', err);
   }
 }
 
