@@ -45,14 +45,6 @@ export const RecurringTasksPage: React.FC = () => {
   return (
     <div className="animate-in fade-in duration-500 pb-12 space-y-10">
       <div className="flex items-center justify-between px-2">
-        <div>
-          <h3 className="text-3xl font-black text-white tracking-tighter uppercase">
-            Consistent Habits
-          </h3>
-          <p className="text-[10px] text-white/30 font-bold uppercase tracking-[0.2em] mt-2">
-            Automated progress trackers
-          </p>
-        </div>
         <button
           onClick={() => setModalOpen(true)}
           className={`${THEME.buttonPrimary} px-6 py-3 text-xs font-black uppercase tracking-widest shadow-lg shadow-pilot-orange/20 flex items-center gap-2`}

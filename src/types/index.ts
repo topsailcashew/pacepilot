@@ -1,14 +1,8 @@
-export type EnergyLevel = 'Low' | 'Medium' | 'High';
+export type TaskZone = 'Blue' | 'Green' | 'Grey' | 'Yellow' | 'Red';
 
 export type RecurringInterval = 'Daily' | 'Weekly' | 'Monthly';
 
 export type RecurringStatus = 'Completed' | 'Pending';
-
-export type EisenhowerCategory =
-  | 'Urgent & Important'
-  | 'Important, Not Urgent'
-  | 'Urgent, Not Important'
-  | 'Not Urgent, Not Important';
 
 export interface User {
   id: string;
@@ -29,14 +23,11 @@ export interface Task {
   description?: string;
   category?: string;
   projectId?: string;
-  energyRequired: EnergyLevel;
+  zone: TaskZone;
   isCompleted: boolean;
   dueDate?: string;
   createdAt: string;
-  isRecurring?: boolean;
-  recurringInterval?: RecurringInterval;
-  eisenhower?: EisenhowerCategory;
-  googleTaskId?: string;   // set after push to Google Tasks
+  googleTaskId?: string;
 }
 
 export interface Project {
@@ -44,16 +35,18 @@ export interface Project {
   name: string;
   color: string;
   icon: string;
+  googleListId?: string; // Google Tasks list ID this project syncs with
 }
 
 export interface CalendarEvent {
   id: string;
-  eventDate: string;       // ISO date "YYYY-MM-DD"
+  eventDate: string;
   title: string;
   color: string;
   time: string;
   loc: string;
-  googleEventId?: string;  // set after push to Google Calendar
+  googleEventId?: string;
+  googleCalendarId?: string; // which Google calendar this came from
 }
 
 export interface RecurringTask {
@@ -73,7 +66,6 @@ export interface TaskBreakdownItem {
 
 export interface DailyReport {
   date: string;
-  energyLevel: EnergyLevel;
   notes: string;
   momentumScore: number;
   aiInsights: string;
@@ -87,13 +79,11 @@ export interface AppState {
   projects: Project[];
   calendarEvents: CalendarEvent[];
   recurringTasks: RecurringTask[];
-  energyLevel: EnergyLevel | null;
   dailyReports: DailyReport[];
   user: User | null;
   googleAccessToken: string | null;
 }
 
-/** Shape of a toast notification */
 export interface Toast {
   id: string;
   type: 'success' | 'error' | 'info';
@@ -107,11 +97,51 @@ export type NotificationType =
   | 'report_reminder';
 
 export interface AppNotification {
-  /** Deterministic ID derived from source data — e.g. "overdue-<taskId>". */
   id: string;
   type: NotificationType;
   title: string;
   subtitle?: string;
-  /** Hash-router path to navigate to on click. */
   href: string;
+}
+
+// ─── Gmail ────────────────────────────────────────────────────────────────────
+
+export interface GmailHeader {
+  name: string;
+  value: string;
+}
+
+export interface GmailMessagePart {
+  mimeType: string;
+  body: { data?: string; size: number };
+  parts?: GmailMessagePart[];
+}
+
+export interface GmailMessage {
+  id: string;
+  threadId: string;
+  labelIds: string[];
+  snippet: string;
+  internalDate: string;
+  payload: {
+    headers: GmailHeader[];
+    mimeType: string;
+    body: { data?: string; size: number };
+    parts?: GmailMessagePart[];
+  };
+}
+
+export interface GmailThread {
+  id: string;
+  snippet: string;
+  messages: GmailMessage[];
+}
+
+export interface GmailThreadSummary {
+  id: string;
+  snippet: string;
+  subject: string;
+  from: string;
+  date: string;
+  unread: boolean;
 }

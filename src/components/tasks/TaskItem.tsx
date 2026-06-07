@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { GripVertical, Zap, Folder, Target, Check } from 'lucide-react';
-import { Task, Project, EnergyLevel } from '@/types';
+import { Folder, Target, Check } from 'lucide-react';
+import { Task, Project, TaskZone } from '@/types';
 import { useAppStore } from '@/store/appStore';
-import { THEME } from '@/constants';
+import { THEME, ZONES, ZONE_KEYS } from '@/constants';
 
 interface TaskItemProps {
   task: Task;
@@ -62,7 +62,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     const updates: Partial<Task> = {
       title: (fd.get('title') as string).trim(),
       description: (fd.get('description') as string).trim() || undefined,
-      energyRequired: fd.get('energy') as EnergyLevel,
+      zone: fd.get('zone') as TaskZone,
       dueDate: (fd.get('dueDate') as string) || undefined,
       projectId: (fd.get('projectId') as string) || undefined,
     };
@@ -91,11 +91,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         .join(' ')}
     >
       <div className="flex items-center gap-4">
-        {/* Drag handle (visual only) */}
-        <div className="text-white/10 group-hover:text-white/30 transition-colors" aria-hidden="true">
-          <GripVertical size={16} />
-        </div>
-
         {/* Completion checkbox */}
         <button
           onClick={handleToggleComplete}
@@ -126,20 +121,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           </h4>
 
           {!isExpanded && (
-            <div className="flex items-center gap-4 mt-1">
-              <div className="flex items-center gap-1.5 text-white/20">
-                <Zap
-                  size={10}
-                  className={
-                    task.energyRequired === 'High'
-                      ? 'text-pilot-orange'
-                      : 'text-white/40'
-                  }
-                />
-                <span className="text-[10px] font-black uppercase tracking-widest">
-                  {task.energyRequired} Energy
+            <div className="flex items-center gap-3 mt-1">
+              {task.zone && ZONES[task.zone] && (
+                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${ZONES[task.zone].chipBg} ${ZONES[task.zone].text}`}>
+                  {ZONES[task.zone].label}
                 </span>
-              </div>
+              )}
               {currentProject && (
                 <div className="flex items-center gap-1.5 text-white/20">
                   <Folder size={10} className="text-white/40" />
@@ -207,16 +194,16 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className={THEME.label} htmlFor={`task-energy-${task.id}`}>Energy</label>
+                  <label className={THEME.label} htmlFor={`task-zone-${task.id}`}>Zone</label>
                   <select
-                    id={`task-energy-${task.id}`}
-                    name="energy"
-                    defaultValue={task.energyRequired}
+                    id={`task-zone-${task.id}`}
+                    name="zone"
+                    defaultValue={task.zone}
                     className={`${THEME.input} w-full`}
                   >
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
+                    {ZONE_KEYS.map((z) => (
+                      <option key={z} value={z}>{ZONES[z].label} — {ZONES[z].description}</option>
+                    ))}
                   </select>
                 </div>
 

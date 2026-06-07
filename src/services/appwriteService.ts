@@ -146,6 +146,8 @@ export function signInWithGoogle(): void {
     [
       'https://www.googleapis.com/auth/calendar',
       'https://www.googleapis.com/auth/tasks',
+      'https://www.googleapis.com/auth/gmail.modify',
+      'https://www.googleapis.com/auth/drive.readonly',
     ]
   );
 }
@@ -402,4 +404,40 @@ export async function createDailyReport(
     },
     userPermissions(userId)
   );
+}
+
+
+// ─── One-time migration: clear Appwrite tasks + calendar events ───────────────
+
+/**
+ * Delete all tasks and calendar events stored in Appwrite for this user.
+ * Called once after migrating to Google-only storage.
+ */
+export async function clearAppwriteTasksAndEvents(userId: string): Promise<void> {
+  const q = [Query.equal('userId', userId), Query.limit(100)];
+  try {
+    const [taskDocs, eventDocs] = await Promise.all([
+      databases.listDocuments(DB_ID, COLLECTIONS.tasks, q),
+      databases.listDocuments(DB_ID, COLLECTIONS.calendarEvents, q),
+    ]);
+    await Promise.all([
+      ...taskDocs.documents.map((d) => databases.deleteDocument(DB_ID, COLLECTIONS.tasks, d.$id).catch(() => {})),
+      ...eventDocs.documents.map((d) => databases.deleteDocument(DB_ID, COLLECTIONS.calendarEvents, d.$id).catch(() => {})),
+    ]);
+  } catch {
+    // Non-fatal
+  }
+}
+
+/** Delete all Appwrite-persisted projects for this user (one-time migration). */
+export async function clearAppwriteProjects(userId: string): Promise<void> {
+  const q = [Query.equal('userId', userId), Query.limit(100)];
+  try {
+    const docs = await databases.listDocuments(DB_ID, COLLECTIONS.projects, q);
+    await Promise.all(
+      docs.documents.map((d) => databases.deleteDocument(DB_ID, COLLECTIONS.projects, d.$id).catch(() => {}))
+    );
+  } catch {
+    // Non-fatal
+  }
 }

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ChevronRight, PlusCircle, Pencil, Trash2 } from 'lucide-react';
+import { ChevronRight, PlusCircle, Pencil, Trash2, Plus } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { TaskItem } from '@/components/tasks/TaskItem';
+import { AddTaskModal } from '@/components/tasks/AddTaskModal';
 import { Modal } from '@/components/ui/Modal';
 import { THEME } from '@/constants';
 import type { Project } from '@/types';
@@ -16,7 +17,7 @@ const COLOR_OPTIONS = [
   { label: 'Teal', value: 'bg-teal-500' },
 ];
 
-const ICON_OPTIONS = ['Briefcase', 'User', 'Activity', 'Star', 'Zap', 'Globe', 'Code', 'Heart'];
+const ICON_OPTIONS = ['🚀', '🎯', '⭐', '💡', '🔥', '🌍', '💻', '❤️', '📊', '🎨', '🔬', '📱'];
 
 interface ProjectFormState {
   name: string;
@@ -24,7 +25,7 @@ interface ProjectFormState {
   icon: string;
 }
 
-const DEFAULT_FORM: ProjectFormState = { name: '', color: 'bg-pilot-orange', icon: 'Briefcase' };
+const DEFAULT_FORM: ProjectFormState = { name: '', color: 'bg-pilot-orange', icon: '🚀' };
 
 /**
  * Projects view: sidebar of project links and a task list for the selected project.
@@ -35,6 +36,7 @@ export const ProjectsPage: React.FC = () => {
   const { tasks, projects, addProject, updateProject, deleteProject, addToast } = useAppStore();
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [addingTask, setAddingTask] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [form, setForm] = useState<ProjectFormState>(DEFAULT_FORM);
 
@@ -83,14 +85,6 @@ export const ProjectsPage: React.FC = () => {
   return (
     <div className="animate-in fade-in duration-500 pb-12 space-y-10">
       <div className="flex items-center justify-between px-2">
-        <div>
-          <h3 className="text-3xl font-black text-white tracking-tighter uppercase">
-            Projects
-          </h3>
-          <p className="text-[10px] text-white/30 font-bold uppercase tracking-[0.2em] mt-2">
-            Focused areas of work
-          </p>
-        </div>
         <button
           onClick={openCreate}
           className={`${THEME.buttonPrimary} px-6 py-3 text-xs font-black uppercase tracking-widest shadow-lg shadow-pilot-orange/20 flex items-center gap-2`}
@@ -147,12 +141,28 @@ export const ProjectsPage: React.FC = () => {
           <div className={THEME.card}>
             {activeProject ? (
               <>
-                <h4 className={THEME.label}>Tasks in {activeProject.name}</h4>
-                <div className="space-y-4 mt-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h4 className={THEME.label}>Tasks in {activeProject.name}</h4>
+                  <button
+                    onClick={() => setAddingTask(true)}
+                    className={`${THEME.buttonPrimary} px-4 py-2 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5`}
+                  >
+                    <Plus size={13} /> Add Task
+                  </button>
+                </div>
+                <div className="space-y-4">
                   {projectTasks.length === 0 ? (
-                    <p className="text-xs text-white/20 font-bold uppercase tracking-widest py-10 text-center">
-                      No tasks yet in this project.
-                    </p>
+                    <div className="py-12 text-center border border-dashed border-white/10 rounded-xl">
+                      <p className="text-xs text-white/20 font-bold uppercase tracking-widest mb-3">
+                        No tasks yet in this project.
+                      </p>
+                      <button
+                        onClick={() => setAddingTask(true)}
+                        className="text-[10px] font-black uppercase tracking-widest text-pilot-orange hover:text-white transition-colors"
+                      >
+                        + Add the first task
+                      </button>
+                    </div>
                   ) : (
                     projectTasks.map((t) => (
                       <TaskItem
@@ -176,6 +186,13 @@ export const ProjectsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Add Task Modal */}
+      <AddTaskModal
+        isOpen={addingTask}
+        onClose={() => setAddingTask(false)}
+        defaultProjectId={activeProject?.id}
+      />
 
       {/* Create / Edit Project Modal */}
       <Modal
@@ -218,17 +235,24 @@ export const ProjectsPage: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className={THEME.label} htmlFor="proj-icon">Icon</label>
-            <select
-              id="proj-icon"
-              value={form.icon}
-              onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}
-              className={`${THEME.input} w-full`}
-            >
+            <label className={THEME.label}>Icon</label>
+            <div className="flex gap-2 flex-wrap">
               {ICON_OPTIONS.map((icon) => (
-                <option key={icon} value={icon}>{icon}</option>
+                <button
+                  key={icon}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, icon }))}
+                  aria-label={icon}
+                  className={`w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all ${
+                    form.icon === icon
+                      ? 'bg-white/15 ring-2 ring-white/30 scale-110'
+                      : 'bg-white/5 hover:bg-white/10 opacity-60 hover:opacity-100'
+                  }`}
+                >
+                  {icon}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">

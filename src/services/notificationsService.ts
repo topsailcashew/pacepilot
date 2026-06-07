@@ -85,18 +85,39 @@ export function computeNotifications(
       href: '/',
     }));
 
-  // 2. Today's calendar events — matched by full ISO date
+  // 2. Today's calendar events — imminent (≤30 min away) shown first, rest after
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+
   const eventNotifications: AppNotification[] = calendarEvents
     .filter((e) => e.eventDate === todayIso)
-    .map((e) => ({
-      id: `event-${e.id}`,
-      type: 'calendar_event' as const,
-      title: e.title,
-      subtitle: e.time
-        ? `${e.time}${e.loc ? ` · ${e.loc}` : ''}`
-        : e.loc || undefined,
-      href: '/calendar',
-    }));
+    .map((e) => {
+      const minsUntil = e.time
+        ? (() => {
+            const [h, m] = e.time!.split(':').map(Number);
+            return h * 60 + m - nowMins;
+          })()
+        : null;
+
+      const imminentLabel =
+        minsUntil !== null && minsUntil >= 0 && minsUntil <= 30
+          ? minsUntil === 0
+            ? 'Starting now'
+            : `Starts in ${minsUntil} min`
+          : null;
+
+      return {
+        id: imminentLabel ? `event-soon-${e.id}` : `event-${e.id}`,
+        type: 'calendar_event' as const,
+        title: e.title,
+        subtitle: imminentLabel
+          ? `${imminentLabel}${e.loc ? ` · ${e.loc}` : ''}`
+          : e.time
+          ? `${e.time}${e.loc ? ` · ${e.loc}` : ''}`
+          : e.loc || undefined,
+        href: '/calendar',
+      };
+    })
+    .sort((a) => (a.id.startsWith('event-soon') ? -1 : 1));
 
   // 3. Habits due
   const habitNotifications: AppNotification[] = recurringTasks

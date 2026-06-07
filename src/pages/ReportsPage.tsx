@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import { TrendingUp, RefreshCw, AlertTriangle, CheckCircle2, Zap } from 'lucide-react';
-import { PieChart as PieChartIcon } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -9,16 +8,11 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
 } from 'recharts';
 import { useAppStore } from '@/store/appStore';
 import { getWeeklyInsights } from '@/services/geminiService';
 import { computeProjectInsights, computeTaskMomentum } from '@/services/insightsService';
 import { THEME } from '@/constants';
-
-const CHART_COLORS = ['#F37324', '#3B82F6', '#10B981'];
 
 /**
  * Analytics / Insights page showing momentum trend, energy profile charts,
@@ -33,21 +27,6 @@ export const ReportsPage: React.FC = () => {
     date: r.date.split('-')[2],
     score: r.momentumScore,
   }));
-
-  const completionByEnergy = [
-    {
-      name: 'High',
-      count: dailyReports.filter((r) => r.energyLevel === 'High').length,
-    },
-    {
-      name: 'Med',
-      count: dailyReports.filter((r) => r.energyLevel === 'Medium').length,
-    },
-    {
-      name: 'Low',
-      count: dailyReports.filter((r) => r.energyLevel === 'Low').length,
-    },
-  ];
 
   const projectInsights = useMemo(
     () => computeProjectInsights(projects, tasks),
@@ -74,14 +53,6 @@ export const ReportsPage: React.FC = () => {
   return (
     <div className="animate-in fade-in duration-500 pb-12 space-y-10">
       <div className="flex items-center justify-between px-2">
-        <div>
-          <h3 className="text-3xl font-black text-white tracking-tighter uppercase">
-            Insights
-          </h3>
-          <p className="text-[10px] text-white/30 font-bold uppercase tracking-[0.2em] mt-2">
-            Productivity analytics
-          </p>
-        </div>
         <button
           onClick={handleFetchInsights}
           disabled={isLoadingInsights}
@@ -131,7 +102,7 @@ export const ReportsPage: React.FC = () => {
       </div>
 
       {/* ── Charts ─────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 gap-8">
         {/* Momentum trend */}
         <div className={THEME.card}>
           <h4 className="text-xs font-black text-white/40 uppercase tracking-widest mb-10 flex items-center gap-2">
@@ -177,42 +148,6 @@ export const ReportsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Energy profile */}
-        <div className={THEME.card}>
-          <h4 className="text-xs font-black text-white/40 uppercase tracking-widest mb-10 flex items-center gap-2">
-            <PieChartIcon size={16} className="text-pilot-orange" /> Energy Profile
-          </h4>
-          <div className="h-[250px] w-full flex items-center justify-center" style={{ minHeight: '250px' }}>
-            {completionByEnergy.every((d) => d.count === 0) ? (
-              <p className="text-xs text-white/20 font-bold uppercase tracking-widest text-center">
-                No data yet — complete a day report to see your energy profile.
-              </p>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%" debounce={50}>
-                <PieChart>
-                  <Pie
-                    data={completionByEnergy}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={5}
-                    dataKey="count"
-                    stroke="none"
-                  >
-                    {completionByEnergy.map((_, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={CHART_COLORS[index % CHART_COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* ── Project Completion Breakdown ───────────────────────────────────── */}

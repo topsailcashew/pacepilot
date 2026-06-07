@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, ListTodo, Clock } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { AddEventModal } from '@/components/ui/AddEventModal';
+import { AddTaskModal } from '@/components/tasks/AddTaskModal';
 import { THEME } from '@/constants';
 import type { CalendarEvent } from '@/types';
 
@@ -25,6 +26,7 @@ export const WeeklyPlannerPage: React.FC = () => {
   const { tasks, calendarEvents, addCalendarEvent } = useAppStore();
   const [weekOffset, setWeekOffset] = useState(0); // 0 = current week
   const [addEventDate, setAddEventDate] = useState<string | null>(null);
+  const [addTaskDate, setAddTaskDate] = useState<string | null>(null);
 
   const today = new Date();
   const baseMonday = getWeekMonday(today);
@@ -47,14 +49,7 @@ export const WeeklyPlannerPage: React.FC = () => {
     <div className="animate-in fade-in duration-500 pb-12 space-y-10">
       {/* Header */}
       <div className="flex items-center justify-between px-2">
-        <div>
-          <h3 className="text-3xl font-black text-white tracking-tighter uppercase">
-            Weekly Planner
-          </h3>
-          <p className="text-[10px] text-white/30 font-bold uppercase tracking-[0.2em] mt-2">
-            {weekLabel}
-          </p>
-        </div>
+        <p className="text-[10px] text-white/30 font-bold uppercase tracking-[0.2em]">{weekLabel}</p>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setWeekOffset((o) => o - 1)}
@@ -166,17 +161,17 @@ export const WeeklyPlannerPage: React.FC = () => {
                       >
                         {t.title}
                       </span>
-                      <div className="mt-2 flex gap-1">
-                        <div
-                          className={`w-1 h-1 rounded-full ${
-                            t.energyRequired === 'High'
-                              ? 'bg-pilot-orange'
-                              : t.energyRequired === 'Medium'
-                              ? 'bg-blue-500'
-                              : 'bg-green-500'
-                          }`}
-                        />
-                      </div>
+                      {t.zone && (
+                        <div className="mt-2 flex gap-1">
+                          <div className={`w-1 h-1 rounded-full ${
+                            t.zone === 'Blue' ? 'bg-blue-500'
+                            : t.zone === 'Green' ? 'bg-green-500'
+                            : t.zone === 'Grey' ? 'bg-slate-400'
+                            : t.zone === 'Yellow' ? 'bg-yellow-400'
+                            : 'bg-red-500'
+                          }`} />
+                        </div>
+                      )}
                     </div>
                   ))}
 
@@ -187,13 +182,21 @@ export const WeeklyPlannerPage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Add event button */}
-                <button
-                  onClick={() => setAddEventDate(dateStr)}
-                  className="shrink-0 w-full py-1.5 text-[9px] font-black uppercase tracking-widest text-white/20 hover:text-pilot-orange hover:bg-pilot-orange/5 rounded-lg transition-all border border-dashed border-white/5 hover:border-pilot-orange/20"
-                >
-                  + Event
-                </button>
+                {/* Quick-add buttons */}
+                <div className="shrink-0 grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={() => setAddTaskDate(dateStr)}
+                    className="py-1.5 text-[9px] font-black uppercase tracking-widest text-white/20 hover:text-pilot-orange hover:bg-pilot-orange/5 rounded-lg transition-all border border-dashed border-white/5 hover:border-pilot-orange/20"
+                  >
+                    + Task
+                  </button>
+                  <button
+                    onClick={() => setAddEventDate(dateStr)}
+                    className="py-1.5 text-[9px] font-black uppercase tracking-widest text-white/20 hover:text-blue-400 hover:bg-blue-500/5 rounded-lg transition-all border border-dashed border-white/5 hover:border-blue-500/20"
+                  >
+                    + Event
+                  </button>
+                </div>
               </div>
             </div>
           );
@@ -206,6 +209,13 @@ export const WeeklyPlannerPage: React.FC = () => {
         onClose={() => setAddEventDate(null)}
         defaultDate={addEventDate ?? today.toISOString().slice(0, 10)}
         onSubmit={handleAddEvent}
+      />
+
+      {/* Add Task Modal */}
+      <AddTaskModal
+        isOpen={addTaskDate !== null}
+        onClose={() => setAddTaskDate(null)}
+        defaultDueDate={addTaskDate ?? undefined}
       />
     </div>
   );

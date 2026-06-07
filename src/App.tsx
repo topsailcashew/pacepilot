@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AddTaskModal } from '@/components/tasks/AddTaskModal';
 
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -8,18 +9,23 @@ import { ProtectedRoute } from '@/components/ui/ProtectedRoute';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 
-import { LoginPage } from '@/pages/auth/LoginPage';
-import { SignupPage } from '@/pages/auth/SignupPage';
-import { WorkdayPage } from '@/pages/WorkdayPage';
-import { WeeklyPlannerPage } from '@/pages/WeeklyPlannerPage';
-import { ProjectsPage } from '@/pages/ProjectsPage';
-import { CalendarPage } from '@/pages/CalendarPage';
-import { RecurringTasksPage } from '@/pages/RecurringTasksPage';
-import { ReportsPage } from '@/pages/ReportsPage';
-import { ProfilePage } from '@/pages/ProfilePage';
+// ── Lazy-loaded page bundles (code-split per route) ───────────────────────────
+const LoginPage          = lazy(() => import('@/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
+const SignupPage         = lazy(() => import('@/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
+const WorkdayPage        = lazy(() => import('@/pages/WorkdayPage').then((m) => ({ default: m.WorkdayPage })));
+const TasksPage          = lazy(() => import('@/pages/TasksPage').then((m) => ({ default: m.TasksPage })));
+const WeeklyPlannerPage  = lazy(() => import('@/pages/WeeklyPlannerPage').then((m) => ({ default: m.WeeklyPlannerPage })));
+const ProjectsPage       = lazy(() => import('@/pages/ProjectsPage').then((m) => ({ default: m.ProjectsPage })));
+const CalendarPage       = lazy(() => import('@/pages/CalendarPage').then((m) => ({ default: m.CalendarPage })));
+const RecurringTasksPage = lazy(() => import('@/pages/RecurringTasksPage').then((m) => ({ default: m.RecurringTasksPage })));
+const ReportsPage        = lazy(() => import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage })));
+const ProfilePage        = lazy(() => import('@/pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
+const MailPage           = lazy(() => import('@/pages/MailPage').then((m) => ({ default: m.MailPage })));
+const FilesPage          = lazy(() => import('@/pages/FilesPage').then((m) => ({ default: m.FilesPage })));
 
 import { useAppStore } from '@/store/appStore';
 import { useDataLoader } from '@/hooks/useDataLoader';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 /**
  * Root application shell.
@@ -30,13 +36,20 @@ const AppShell: React.FC = () => {
 
   const isLoading = useAppStore((s) => s.isLoading);
   const user = useAppStore((s) => s.user);
+  const theme = useAppStore((s) => s.theme);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+
+  const tasks = useAppStore((s) => s.tasks);
+  const calendarEvents = useAppStore((s) => s.calendarEvents);
+  const recurringTasks = useAppStore((s) => s.recurringTasks);
+  usePushNotifications(tasks, calendarEvents, recurringTasks);
 
   if (isLoading) return <LoadingSpinner />;
 
   return (
-    <div className="min-h-screen bg-deepnavy flex text-white font-sans selection:bg-pilot-orange/30 overflow-hidden">
+    <div className={`min-h-screen bg-deepnavy flex font-sans selection:bg-pilot-orange/30 overflow-hidden ${theme === 'light' ? 'light text-slate-900' : 'text-white'}`}>
       {user && (
         <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
       )}
@@ -47,10 +60,17 @@ const AppShell: React.FC = () => {
         }`}
       >
         {user && (
-          <TopBar toggleSidebar={() => setIsSidebarOpen((o: boolean) => !o)} />
+          <TopBar
+            toggleSidebar={() => setIsSidebarOpen((o: boolean) => !o)}
+            onAddTask={() => setIsQuickAddOpen(true)}
+          />
+        )}
+        {user && (
+          <AddTaskModal isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />
         )}
 
         <div className="flex-1 overflow-y-auto custom-scrollbar no-scrollbar pr-2">
+          <Suspense fallback={<LoadingSpinner />}>
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
@@ -62,6 +82,14 @@ const AppShell: React.FC = () => {
               element={
                 <ProtectedRoute>
                   <WorkdayPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tasks"
+              element={
+                <ProtectedRoute>
+                  <TasksPage />
                 </ProtectedRoute>
               }
             />
@@ -122,9 +150,27 @@ const AppShell: React.FC = () => {
               }
             />
 
+            <Route
+              path="/mail"
+              element={
+                <ProtectedRoute>
+                  <MailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/files"
+              element={
+                <ProtectedRoute>
+                  <FilesPage />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
         </div>
       </main>
 

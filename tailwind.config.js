@@ -4,8 +4,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        deepnavy: '#0B0C1E',
-        prussianblue: '#11122C',
+        deepnavy:     'rgb(var(--color-bg)      / <alpha-value>)',
+        prussianblue: 'rgb(var(--color-surface) / <alpha-value>)',
         'pilot-orange': '#F37324',
         whitesmoke: '#F7F4F3',
       },

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { isAppwriteConfigured } from '@/lib/appwrite';
 import {
@@ -7,15 +7,19 @@ import {
   loadUserPreferences,
   saveUserPreferences,
   fetchGoogleAvatar,
-  seedDefaultProjects,
-  createCalendarEvent,
+  clearAppwriteTasksAndEvents,
+  clearAppwriteProjects,
 } from '@/services/appwriteService';
 import {
   getGoogleAccessToken,
-  fetchGoogleCalendarEvents,
+  fetchAllGoogleCalendarEvents,
 } from '@/services/googleCalendarService';
+import {
+  fetchGoogleTaskLists,
+  fetchAllGoogleTasks,
+} from '@/services/googleTasksService';
 import { DEMO_USER } from '@/constants';
-import type { AppState, User, CalendarEvent } from '@/types';
+import type { AppState, User, CalendarEvent, Task } from '@/types';
 
 // ── Mock data fallback ─────────────────────────────────────────────────────────
 
@@ -31,75 +35,86 @@ async function loadMockData(
   setUser(DEMO_USER);
 }
 
-// ── Google sync ────────────────────────────────────────────────────────────────
+// ── Google data loader ────────────────────────────────────────────────────────
 
 /**
- * After Appwrite data loads, pull Google Calendar events into Appwrite + the store.
- *
- * Only events that are successfully persisted to Appwrite are added to the
- * local store — this prevents re-attempting the same writes on every page load
- * when the Appwrite schema is not yet configured.
- *
- * All errors are caught and non-fatal: the app continues with Appwrite data.
+ * Load tasks and calendar events exclusively from Google APIs.
+ * Appwrite is used only for projects, recurring tasks, reports, and preferences.
  */
-async function syncWithGoogle(
-  data: Partial<AppState>,
+async function loadGoogleData(
+  token: string,
   userId: string,
   setGoogleAccessToken: (token: string | null) => void,
   initializeData: (data: Partial<AppState>) => void,
-  addToast: (type: 'success' | 'error' | 'info', message: string) => void
+  addToast: (type: 'success' | 'error' | 'info', message: string) => void,
 ): Promise<void> {
-  const token = await getGoogleAccessToken();
-  if (!token) return; // Email-auth user or scopes not yet granted — skip silently
-
   setGoogleAccessToken(token);
 
-  // ── Calendar pull ─────────────────────────────────────────────────────────
+  // One-time cleanup: delete old Appwrite tasks, events, and projects (idempotent)
+  clearAppwriteTasksAndEvents(userId).catch(() => {});
+  clearAppwriteProjects(userId).catch(() => {});
+
+  // ── Load Google Task Lists as Projects ────────────────────────────────────
+  let projects: import('@/types').Project[] = [];
+  try {
+    const lists = await fetchGoogleTaskLists(token);
+    // Assign a stable color per list index
+    const LIST_COLORS = ['#f37324', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+    projects = lists.map((l, i) => ({
+      id: l.id,
+      name: l.title,
+      color: LIST_COLORS[i % LIST_COLORS.length],
+      icon: '',
+      googleListId: l.id,
+    }));
+  } catch (err) {
+    console.warn('[useDataLoader] Google Task Lists fetch failed:', err);
+  }
+
+  // ── Fetch tasks from all Google Task Lists ────────────────────────────────
+  let tasks: Task[] = [];
+  try {
+    const googleTasks = await fetchAllGoogleTasks(token);
+    tasks = googleTasks.map((gt) => ({
+      id: gt.googleTaskId,
+      title: gt.title,
+      zone: gt.zone,
+      isCompleted: gt.completed,
+      createdAt: new Date().toISOString(),
+      dueDate: gt.dueDate,
+      googleTaskId: gt.googleTaskId,
+      projectId: gt.listId,          // list ID = project ID
+    }));
+  } catch (err) {
+    console.warn('[useDataLoader] Google Tasks fetch failed:', err);
+    addToast('error', 'Could not load Google Tasks. Check your connection.');
+  }
+
+  // ── Fetch events from all Google Calendars ────────────────────────────────
+  let calendarEvents: CalendarEvent[] = [];
   try {
     const now = new Date();
-    const timeMin = now.toISOString();
-    const timeMax = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
+    // Show events from 3 months ago through 6 months ahead
+    const timeMin = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const timeMax = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000).toISOString();
 
-    const googleEvents = await fetchGoogleCalendarEvents(token, timeMin, timeMax);
-    const existingGoogleIds = new Set(
-      (data.calendarEvents ?? []).map((e) => e.googleEventId).filter(Boolean)
-    );
-
-    const importedEvents: CalendarEvent[] = [];
-    for (const ge of googleEvents) {
-      if (existingGoogleIds.has(ge.googleEventId)) continue;
-
-      const newEvent: CalendarEvent = {
-        id: crypto.randomUUID(),
-        eventDate: ge.eventDate,
-        title: ge.title,
-        time: ge.time,
-        loc: ge.location,
-        color: 'bg-blue-500',
-        googleEventId: ge.googleEventId,
-      };
-
-      // Only add to local state if the Appwrite write succeeds.
-      // If the schema isn't configured yet (400), skip silently — this prevents
-      // the same events being re-attempted on every page load.
-      try {
-        await createCalendarEvent(newEvent, userId);
-        importedEvents.push(newEvent);
-      } catch {
-        // Schema not ready — skip without adding to store
-      }
-    }
-
-    // Merge into store state in a single call — no Appwrite or Google side-effects
-    if (importedEvents.length > 0) {
-      initializeData({
-        calendarEvents: [...(data.calendarEvents ?? []), ...importedEvents],
-      });
-    }
+    const googleEvents = await fetchAllGoogleCalendarEvents(token, timeMin, timeMax);
+    calendarEvents = googleEvents.map((ge) => ({
+      id: ge.googleEventId,         // use googleEventId as local id
+      eventDate: ge.eventDate,
+      title: ge.title,
+      time: ge.time,
+      loc: ge.location,
+      color: ge.calendarColor,
+      googleEventId: ge.googleEventId,
+      googleCalendarId: ge.googleCalendarId,
+    }));
   } catch (err) {
-    console.warn('[useDataLoader] Google Calendar sync failed:', err);
-    addToast('error', 'Google Calendar sync unavailable — sign out and back in to reconnect.');
+    console.warn('[useDataLoader] Google Calendar fetch failed:', err);
+    addToast('error', 'Could not load Google Calendar. Check your connection.');
   }
+
+  initializeData({ tasks, calendarEvents, projects });
 }
 
 // ── Appwrite data loader ───────────────────────────────────────────────────────
@@ -111,18 +126,16 @@ async function loadAppwriteData(
   addToast: (type: 'success' | 'error' | 'info', message: string) => void
 ): Promise<void> {
   const appUser = await getCurrentUser();
-  if (!appUser) return; // No active session — login page handles redirect
+  if (!appUser) return;
 
   const prefs = await loadUserPreferences();
 
-  // On first Google login, prefs.avatar will be empty — pull it from Google
-  // and persist it so subsequent loads don't need another API call.
   let avatar = prefs.avatar;
   if (!avatar) {
     const googleAvatar = await fetchGoogleAvatar();
     if (googleAvatar) {
       avatar = googleAvatar;
-      await saveUserPreferences({ ...prefs, avatar }).catch(() => {/* non-fatal */});
+      await saveUserPreferences({ ...prefs, avatar }).catch(() => {});
     }
   }
 
@@ -139,33 +152,20 @@ async function loadAppwriteData(
     },
   });
 
-  let data = await loadUserData(appUser.$id);
+  // Load only recurring tasks and reports from Appwrite (projects come from Google Tasks)
+  const data = await loadUserData(appUser.$id);
+  initializeData({ ...data, tasks: [], calendarEvents: [], projects: [] });
 
-  // New account — seed default projects
-  if (!data.projects?.length) {
-    const defaultProjects = await seedDefaultProjects(appUser.$id);
-    data = { ...data, projects: defaultProjects };
+  // Load tasks + events from Google (non-blocking)
+  const token = await getGoogleAccessToken();
+  if (token) {
+    loadGoogleData(token, appUser.$id, setGoogleAccessToken, initializeData, addToast)
+      .catch((err) => console.error('[useDataLoader] Google data load error:', err));
   }
-
-  initializeData(data);
-
-  // Run Google sync in the background (non-blocking — errors are toasted)
-  syncWithGoogle(data, appUser.$id, setGoogleAccessToken, initializeData, addToast)
-    .catch((err) => console.error('[useDataLoader] Unexpected sync error:', err));
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
-/**
- * Bootstraps app data on mount.
- *
- * When Appwrite is configured (VITE_APPWRITE_PROJECT_ID + VITE_APPWRITE_DATABASE_ID
- * are set) it restores the session and fetches live database data, then syncs
- * with Google Calendar / Tasks if the user is signed in with Google.
- *
- * When Appwrite is NOT configured it falls back to loading /public/Mockdata.json
- * with a demo user so the UI stays fully explorable during local development.
- */
 export function useDataLoader(): void {
   const {
     initializeData,
@@ -175,19 +175,18 @@ export function useDataLoader(): void {
     setGoogleAccessToken,
   } = useAppStore();
 
+  const didRun = useRef(false);
+
   useEffect(() => {
+    if (didRun.current) return;
+    didRun.current = true;
+
     const run = async () => {
       setLoading(true);
       try {
         if (isAppwriteConfigured()) {
-          await loadAppwriteData(
-            initializeData,
-            setUser,
-            setGoogleAccessToken,
-            addToast
-          );
+          await loadAppwriteData(initializeData, setUser, setGoogleAccessToken, addToast);
         } else {
-          console.info('[useDataLoader] Appwrite not configured — using mock data.');
           await loadMockData(initializeData, setUser);
         }
       } catch (err) {

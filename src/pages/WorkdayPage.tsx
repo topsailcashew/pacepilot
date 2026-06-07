@@ -1,77 +1,138 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Plus,
-  Activity,
-  CheckCircle2,
-  Sparkles,
-  Zap,
+  Plus, CheckCircle2, Sparkles, Clock, CalendarDays,
+  AlertTriangle, ListTodo, CalendarClock,
 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { generateDailyReport } from '@/services/geminiService';
-import { PomodoroTimer } from '@/components/timer/PomodoroTimer';
-import { WhiteNoisePlayer } from '@/components/audio/WhiteNoisePlayer';
+import { FlowTimer } from '@/components/timer/FlowTimer';
+import { AmbiancePlayer } from '@/components/audio/AmbiancePlayer';
 import { TaskItem } from '@/components/tasks/TaskItem';
-import { Modal } from '@/components/ui/Modal';
-import { ENERGY_LEVELS, THEME } from '@/constants';
-import { EnergyLevel, Task } from '@/types';
+import { AddTaskModal } from '@/components/tasks/AddTaskModal';
+import { ZONES, ZONE_KEYS, THEME } from '@/constants';
+import { TaskZone } from '@/types';
+import { detectActiveZone } from '@/lib/zoneDetection';
 
-/**
- * Main workday dashboard: Pomodoro timer, energy vibe selector, task list,
- * area progress sidebar, and end-of-day AI report generation.
- */
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const TODAY = new Date().toISOString().split('T')[0];
+
+/** True if the string is an emoji (not a plain ASCII word like "User") */
+function isEmoji(s?: string): boolean {
+  if (!s) return false;
+  return /\p{Emoji}/u.test(s) && !/^[A-Za-z]+$/.test(s.trim());
+}
+
+function isOverdue(dueDate?: string) {
+  return dueDate && dueDate < TODAY;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export const WorkdayPage: React.FC = () => {
-  const {
-    tasks,
-    projects,
-    energyLevel,
-    setEnergy,
-    addTask,
-    addToast,
-  } = useAppStore();
+  const { tasks, projects, calendarEvents, addToast } = useAppStore();
 
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  // ── Zone state — auto-detected but manually overridable ───────────────────
+  const autoZone = useMemo(detectActiveZone, []);
+  const [currentZone, setCurrentZone] = useState<TaskZone>(autoZone);
+  const [zoneManual, setZoneManual] = useState(false);
+
+  const handleZoneClick = (z: TaskZone) => {
+    setCurrentZone(z);
+    setZoneManual(z !== autoZone);
+  };
+
+  const [zoneFilter, setZoneFilter] = useState<TaskZone | 'All'>(autoZone);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportResult, setReportResult] = useState<string | null>(null);
-  const [energyFilter, setEnergyFilter] = useState<EnergyLevel | 'All'>('All');
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
 
   const activeTask = useMemo(
     () => tasks.find((t) => t.id === activeTaskId) ?? null,
-    [tasks, activeTaskId]
+    [tasks, activeTaskId],
   );
 
-  /** Tasks created or due today */
+  // ── Agenda: overdue, today-pending, upcoming events ───────────────────────
+
+  const overdueTasks = useMemo(
+    () => tasks.filter((t) => !t.isCompleted && isOverdue(t.dueDate)),
+    [tasks],
+  );
+
+  const todayPendingTasks = useMemo(
+    () =>
+      tasks.filter(
+        (t) =>
+          !t.isCompleted &&
+          !isOverdue(t.dueDate) &&
+          (t.dueDate === TODAY ||
+            t.createdAt.startsWith(TODAY) ||
+            (!t.dueDate && t.zone === currentZone)),
+      ),
+    [tasks, currentZone],
+  );
+
+  const upNext = useMemo(() => {
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    // Events today + next 2 days
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + 3);
+    const cutoffIso = cutoff.toISOString().split('T')[0];
+
+    return calendarEvents
+      .filter((e) => e.eventDate >= TODAY && e.eventDate <= cutoffIso)
+      .map((e) => {
+        const [h, m] = (e.time || '00:00').split(':').map(Number);
+        const totalMins = h * 60 + m;
+        const isToday = e.eventDate === TODAY;
+        const isPast = isToday && totalMins < nowMinutes - 15;
+        return { ...e, totalMins, isToday, isPast };
+      })
+      .filter((e) => !e.isPast)
+      .sort((a, b) => {
+        if (a.eventDate !== b.eventDate) return a.eventDate < b.eventDate ? -1 : 1;
+        return a.totalMins - b.totalMins;
+      });
+  }, [calendarEvents]);
+
+  // ── Zone-filtered task feed ───────────────────────────────────────────────
+
+  const filteredTasks = useMemo(() => {
+    const incomplete = tasks.filter((t) => !t.isCompleted);
+    return zoneFilter === 'All' ? incomplete : incomplete.filter((t) => t.zone === zoneFilter);
+  }, [tasks, zoneFilter]);
+
+  // ── Daily progress ────────────────────────────────────────────────────────
+
   const dailyTasks = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
     return tasks.filter(
-      (t) =>
-        t.createdAt.startsWith(today) ||
-        (t.dueDate && t.dueDate.startsWith(today))
+      (t) => t.createdAt.startsWith(TODAY) || (t.dueDate && t.dueDate.startsWith(TODAY)),
     );
   }, [tasks]);
 
-  /** Incomplete tasks, optionally filtered by energy requirement */
-  const filteredTasks = useMemo(() => {
-    const incomplete = tasks.filter((t) => !t.isCompleted);
-    return energyFilter === 'All'
-      ? incomplete
-      : incomplete.filter((t) => t.energyRequired === energyFilter);
-  }, [tasks, energyFilter]);
-
   const progress = useMemo(() => {
-    if (dailyTasks.length === 0) return 0;
-    const completed = dailyTasks.filter((t) => t.isCompleted).length;
-    return Math.round((completed / dailyTasks.length) * 100);
+    if (!dailyTasks.length) return 0;
+    return Math.round(
+      (dailyTasks.filter((t) => t.isCompleted).length / dailyTasks.length) * 100,
+    );
   }, [dailyTasks]);
+
+  const handleEndSession = (elapsed: number) => {
+    const mins = Math.round(elapsed / 60);
+    if (mins > 0) {
+      addToast('success', `Session logged — ${mins}m in ${ZONES[currentZone].label}.`);
+    }
+  };
 
   const handleEndDay = async () => {
     setIsGeneratingReport(true);
     try {
-      const completedToday = tasks.filter((t) => t.isCompleted);
       const report = await generateDailyReport(
-        completedToday,
+        tasks.filter((t) => t.isCompleted),
         'Focus was solid today.',
-        energyLevel ?? 'Medium'
       );
       setReportResult(report);
     } catch {
@@ -81,151 +142,249 @@ export const WorkdayPage: React.FC = () => {
     }
   };
 
-  const handleAddTask = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const title = fd.get('title') as string;
-    if (!title.trim()) return;
-
-    const newTask: Task = {
-      id: crypto.randomUUID(),
-      title: title.trim(),
-      energyRequired: (fd.get('energy') as EnergyLevel) || 'Medium',
-      isCompleted: false,
-      createdAt: new Date().toISOString(),
-      projectId: (fd.get('project') as string) || undefined,
-    };
-
-    addTask(newTask);
-    setIsAddingTask(false);
-    addToast('success', `"${newTask.title}" added to your list.`);
-  };
+  const zoneMeta = ZONES[currentZone];
 
   return (
-    <div className="animate-in fade-in duration-500 pb-12 space-y-8 h-full overflow-y-auto custom-scrollbar no-scrollbar">
-      {/* Top row: Pomodoro + Vibe card */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-7">
-          <PomodoroTimer
-            activeTask={activeTask}
-            onSessionComplete={() =>
-              addToast('success', "Pomodoro complete! Time for a break. ☕")
-            }
-          />
+    <div className="animate-in fade-in duration-500 pb-12 space-y-6 h-full overflow-y-auto custom-scrollbar no-scrollbar">
+
+      {/* ── Active Zone Banner ─────────────────────────────────────────── */}
+      <div
+        className={`rounded-xl px-6 py-4 border ${zoneMeta.border} ${zoneMeta.chipBg} flex items-center justify-between`}
+      >
+        <div className="flex items-center gap-3">
+          <span className={`w-3 h-3 rounded-full ${zoneMeta.bg} shadow-[0_0_8px_currentColor]`} />
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30">
+                Active Zone
+              </p>
+              {zoneManual && (
+                <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-white/10 text-white/30">
+                  MANUAL
+                </span>
+              )}
+              {!zoneManual && (
+                <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-white/5 text-white/20">
+                  AUTO
+                </span>
+              )}
+            </div>
+            <p className={`text-sm font-black uppercase tracking-widest ${zoneMeta.text}`}>
+              {zoneMeta.label} — {zoneMeta.description}
+            </p>
+          </div>
         </div>
 
-        <div className={`${THEME.card} lg:col-span-5 space-y-8 flex flex-col h-full`}>
-          {/* Energy selector */}
-          <div>
-            <h3 className="text-lg font-black text-white uppercase tracking-widest mb-4">
-              Daily Vibe
-            </h3>
-            <p className={THEME.label}>How's your energy right now?</p>
-            <div className="grid grid-cols-3 gap-3 mt-3">
-              {ENERGY_LEVELS.map((level) => (
-                <button
-                  key={level}
-                  onClick={() => setEnergy(level)}
-                  className={`p-3 rounded-xl border transition-all flex flex-col items-center gap-2 ${
-                    energyLevel === level
-                      ? 'bg-pilot-orange/10 border-pilot-orange/30 text-pilot-orange'
-                      : 'bg-white/[0.02] border-white/5 text-white/20 hover:bg-white/5'
-                  }`}
-                >
-                  <Zap
-                    size={14}
-                    fill={energyLevel === level ? 'currentColor' : 'none'}
-                  />
-                  <span className="text-[10px] font-black uppercase tracking-widest">
-                    {level}
-                  </span>
-                </button>
-              ))}
-            </div>
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2 text-white/20">
+            <Clock size={12} />
+            <span className="text-[10px] font-bold tabular-nums">{zoneMeta.hours}</span>
           </div>
 
-          {/* Acoustic Shield — procedural ambient noise */}
-          <div className="pt-8 border-t border-white/5 flex-1">
-            <span className="block text-[10px] font-black text-white/40 uppercase tracking-widest mb-4 px-1">
-              Acoustic Shield
-            </span>
-            <WhiteNoisePlayer />
+          {/* Zone dot switcher — click to switch active zone */}
+          <div className="hidden md:flex items-center gap-2">
+            {ZONE_KEYS.map((z) => (
+              <button
+                key={z}
+                onClick={() => handleZoneClick(z)}
+                title={`Switch to ${ZONES[z].label}`}
+                className={`transition-all ${
+                  currentZone === z
+                    ? `w-4 h-4 rounded-full ${ZONES[z].bg} ring-2 ring-white/30 ring-offset-1 ring-offset-transparent scale-110`
+                    : `w-2.5 h-2.5 rounded-full ${ZONES[z].bg} opacity-40 hover:opacity-80 hover:scale-110`
+                }`}
+              />
+            ))}
+            {zoneManual && (
+              <button
+                onClick={() => { setCurrentZone(autoZone); setZoneManual(false); setZoneFilter(autoZone); }}
+                className="text-[8px] font-black uppercase tracking-widest text-white/20 hover:text-pilot-orange transition-colors ml-1"
+                title="Reset to auto-detected zone"
+              >
+                Reset
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Task list card */}
-      <div className={THEME.card}>
-        {/* Progress bar */}
-        <div className="mb-10">
-          <div className="flex items-center justify-between mb-3 px-1">
-            <h3 className="text-xs font-black text-white uppercase tracking-[0.3em]">
-              Daily Momentum
-            </h3>
-            <span className="text-xs font-black text-pilot-orange tracking-widest">
-              {progress}% Done
+      {/* ── Flow Timer + Acoustic Shield ──────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-7">
+          <FlowTimer
+            activeTask={activeTask}
+            currentZone={currentZone}
+            onEnd={handleEndSession}
+          />
+        </div>
+
+        <div className={`${THEME.card} lg:col-span-5 flex flex-col gap-0`}>
+          {/* Acoustic Shield */}
+          <div className="pb-5 border-b border-white/5">
+            <span className="block text-[10px] font-black text-white/40 uppercase tracking-widest mb-4">
+              Acoustic Shield
+            </span>
+            <AmbiancePlayer />
+          </div>
+
+          {/* Up Next — upcoming events strip */}
+          <div className="pt-5">
+            <div className="flex items-center gap-2 mb-4">
+              <CalendarDays size={14} className="text-white/30" />
+              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Up Next</span>
+            </div>
+            {upNext.length === 0 ? (
+              <p className="text-[10px] text-white/20 font-bold uppercase tracking-widest">
+                No upcoming events
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {upNext.slice(0, 3).map((ev) => {
+                  const isToday = ev.eventDate === TODAY;
+                  return (
+                    <div
+                      key={ev.id}
+                      className="flex items-center gap-3 bg-white/[0.02] rounded-lg px-3 py-2.5 border border-white/5"
+                    >
+                      <div
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: ev.color || '#f37324' }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-bold text-white/70 truncate">{ev.title}</p>
+                        {!isToday && (
+                          <p className="text-[9px] text-white/20 uppercase tracking-widest">
+                            {new Date(ev.eventDate + 'T00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-[9px] font-black text-white/20 tabular-nums shrink-0">
+                        {ev.time}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Overdue alert ─────────────────────────────────────────────── */}
+      {overdueTasks.length > 0 && (
+        <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-5 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle size={15} className="text-red-400 shrink-0" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-red-400">
+              {overdueTasks.length} Overdue Task{overdueTasks.length > 1 ? 's' : ''}
             </span>
           </div>
-          <div
-            role="progressbar"
-            aria-valuenow={progress}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            className="w-full h-3 bg-white/5 rounded-full overflow-hidden border border-white/5 shadow-inner"
-          >
+          <div className="space-y-2">
+            {overdueTasks.slice(0, 5).map((task) => (
+              <div
+                key={task.id}
+                className="flex items-center gap-3 bg-red-500/5 border border-red-500/10 rounded-lg px-3 py-2.5"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${ZONES[task.zone]?.bg ?? 'bg-white/20'} shrink-0`} />
+                <span className="text-xs font-bold text-white/60 flex-1 truncate">{task.title}</span>
+                <span className="text-[9px] text-red-400/60 font-black uppercase tracking-widest shrink-0">
+                  Due {task.dueDate}
+                </span>
+              </div>
+            ))}
+            {overdueTasks.length > 5 && (
+              <p className="text-[9px] text-white/20 uppercase tracking-widest text-center">
+                +{overdueTasks.length - 5} more
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Today's Agenda ────────────────────────────────────────────── */}
+      {todayPendingTasks.length > 0 && (
+        <div className={THEME.card}>
+          <div className="flex items-center gap-2 mb-5">
+            <ListTodo size={16} className="text-pilot-orange" />
+            <h4 className="text-[10px] font-black text-white/40 uppercase tracking-widest">
+              Today's Agenda
+            </h4>
+            <span className="text-[9px] text-white/20 font-bold ml-auto">
+              {todayPendingTasks.filter((t) => t.isCompleted).length}/{todayPendingTasks.length} done
+            </span>
+          </div>
+          <div className="space-y-2">
+            {todayPendingTasks.slice(0, 8).map((task) => (
+              <div
+                key={task.id}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all"
+              >
+                <span className={`w-2 h-2 rounded-full shrink-0 ${ZONES[task.zone]?.bg ?? 'bg-white/20'}`} />
+                <span className="flex-1 text-sm font-bold text-white/70 truncate">{task.title}</span>
+                {task.dueDate && (
+                  <span className="text-[9px] font-black text-white/20 shrink-0 uppercase tracking-widest">
+                    <CalendarClock size={10} className="inline mr-1" />{task.dueDate}
+                  </span>
+                )}
+                <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${ZONES[task.zone]?.chipBg ?? 'bg-white/5'} ${ZONES[task.zone]?.text ?? 'text-white/30'}`}>
+                  {ZONES[task.zone]?.description ?? task.zone}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Zone Task Feed ────────────────────────────────────────────── */}
+      <div className={THEME.card}>
+        {/* Progress */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Daily Momentum</span>
+            <span className="text-[10px] font-black text-pilot-orange">{progress}% Done</span>
+          </div>
+          <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
             <div
-              className="h-full bg-pilot-orange shadow-[0_0_15px_rgba(243,115,36,0.3)] transition-all duration-1000 ease-out"
+              className="h-full bg-pilot-orange shadow-[0_0_12px_rgba(243,115,36,0.4)] transition-all duration-1000"
               style={{ width: `${progress}%` }}
             />
           </div>
         </div>
 
-        {/* Tasks header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-          <div className="flex items-center gap-3">
-            <Activity size={24} className="text-pilot-orange" />
-            <div>
-              <h3 className="text-lg font-black text-white uppercase tracking-widest">
-                Tasks for Today
-              </h3>
-              <p className="text-[10px] font-bold text-white/20 uppercase tracking-[0.2em] mt-1">
-                {filteredTasks.length} pending items
-              </p>
-            </div>
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div>
+            <h3 className="text-lg font-black text-white uppercase tracking-widest">Tasks</h3>
+            <p className="text-[9px] font-bold text-white/20 uppercase tracking-[0.2em] mt-1">
+              {zoneFilter === 'All' ? 'All zones' : ZONES[zoneFilter].label} · {filteredTasks.length} pending
+            </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="bg-white/5 p-1 rounded-lg border border-white/10 flex items-center">
-              <div className="px-4 py-2 border-r border-white/10">
-                <select
-                  value={energyFilter}
-                  onChange={(e) =>
-                    setEnergyFilter(e.target.value as EnergyLevel | 'All')
-                  }
-                  aria-label="Filter tasks by energy level"
-                  className="bg-transparent text-[10px] font-black uppercase tracking-widest text-white/60 focus:outline-none cursor-pointer"
-                >
-                  <option value="All">All Energy</option>
-                  {ENERGY_LEVELS.map((level) => (
-                    <option key={level} value={level}>
-                      {level}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button
-                onClick={() => setIsAddingTask(true)}
-                aria-label="Add new task"
-                className="px-4 py-2 text-pilot-orange hover:text-white transition-all flex items-center gap-2"
+            <div className="bg-white/5 border border-white/10 rounded-lg px-3 py-2">
+              <select
+                value={zoneFilter}
+                onChange={(e) => setZoneFilter(e.target.value as TaskZone | 'All')}
+                className="bg-transparent text-[10px] font-black uppercase tracking-widest text-white/60 focus:outline-none cursor-pointer"
               >
-                <Plus size={14} />
-              </button>
+                <option value="All">All Zones</option>
+                {ZONE_KEYS.map((z) => (
+                  <option key={z} value={z}>{ZONES[z].label}</option>
+                ))}
+              </select>
             </div>
+
+            <button
+              onClick={() => setIsAddingTask(true)}
+              className={`${THEME.buttonPrimary} px-4 py-2 text-[10px] font-black uppercase tracking-widest flex items-center gap-2`}
+            >
+              <Plus size={14} /> Add Task
+            </button>
 
             <button
               onClick={handleEndDay}
               disabled={isGeneratingReport}
-              className={`${THEME.buttonPrimary} px-8 py-2.5 text-xs font-black uppercase tracking-widest shadow-lg shadow-pilot-orange/10 disabled:opacity-50 disabled:cursor-not-allowed`}
+              className={`${THEME.buttonSecondary} px-5 py-2 text-[10px] font-black uppercase tracking-widest disabled:opacity-50`}
             >
               {isGeneratingReport ? 'Generating…' : 'End Day'}
             </button>
@@ -233,13 +392,13 @@ export const WorkdayPage: React.FC = () => {
         </div>
 
         {/* Task list + sidebar */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8 space-y-3">
             {filteredTasks.length === 0 ? (
-              <div className="text-center py-20 bg-white/[0.01] rounded-xl border border-dashed border-white/10">
-                <CheckCircle2 size={40} className="mx-auto mb-4 text-white/5" />
-                <p className="text-sm font-black text-white/20 uppercase tracking-widest">
-                  You're all caught up!
+              <div className="text-center py-16 rounded-xl border border-dashed border-white/10">
+                <CheckCircle2 size={32} className="mx-auto mb-3 text-white/5" />
+                <p className="text-xs font-black text-white/20 uppercase tracking-widest">
+                  {zoneFilter === 'All' ? "You're all caught up!" : `No ${ZONES[zoneFilter as TaskZone].label} tasks`}
                 </p>
               </div>
             ) : (
@@ -257,31 +416,30 @@ export const WorkdayPage: React.FC = () => {
 
           {/* Area progress + AI report */}
           <div className="lg:col-span-4 space-y-6">
-            <div className="bg-white/[0.02] border border-white/5 rounded-xl p-6">
-              <h4 className="text-xs font-black text-white/40 uppercase tracking-widest mb-6">
+            <div className="bg-white/[0.02] border border-white/5 rounded-xl p-5">
+              <h4 className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-5">
                 Area Progress
               </h4>
-              <div className="space-y-6">
+              <div className="space-y-5">
                 {projects.map((p) => {
-                  const projectTasks = tasks.filter((t) => t.projectId === p.id);
-                  const completed = projectTasks.filter((t) => t.isCompleted).length;
-                  const prog = projectTasks.length
-                    ? Math.round((completed / projectTasks.length) * 100)
+                  const pt = tasks.filter((t) => t.projectId === p.id);
+                  const prog = pt.length
+                    ? Math.round((pt.filter((t) => t.isCompleted).length / pt.length) * 100)
                     : 0;
-
                   return (
                     <div key={p.id}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-black text-white/80 uppercase tracking-tight">
-                          {p.name}
-                        </span>
-                        <span className="text-[10px] font-black text-white/20">
-                          {prog}%
-                        </span>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          {isEmoji(p.icon) && <span>{p.icon}</span>}
+                          <span className="text-[10px] font-black text-white/70 uppercase tracking-tight">
+                            {p.name}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-black text-white/20">{prog}%</span>
                       </div>
                       <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-pilot-orange"
+                          className="h-full bg-pilot-orange transition-all duration-700"
                           style={{ width: `${prog}%` }}
                         />
                       </div>
@@ -291,21 +449,18 @@ export const WorkdayPage: React.FC = () => {
               </div>
             </div>
 
-            {/* AI end-of-day insight */}
             {reportResult && (
-              <div className="bg-pilot-orange/5 border border-pilot-orange/20 rounded-xl p-6 animate-in slide-in-from-right-4 duration-500">
-                <div className="flex items-center gap-2 mb-4">
-                  <Sparkles size={18} className="text-pilot-orange" />
-                  <h4 className="text-xs font-black text-white uppercase tracking-widest">
+              <div className="bg-pilot-orange/5 border border-pilot-orange/20 rounded-xl p-5 animate-in slide-in-from-right-4 duration-500">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles size={16} className="text-pilot-orange" />
+                  <h4 className="text-[10px] font-black text-white uppercase tracking-widest">
                     End Day Insight
                   </h4>
                 </div>
-                <p className="text-xs text-white/60 leading-relaxed italic">
-                  "{reportResult}"
-                </p>
+                <p className="text-xs text-white/50 leading-relaxed italic">"{reportResult}"</p>
                 <button
                   onClick={() => setReportResult(null)}
-                  className="mt-4 text-[10px] font-black uppercase tracking-widest text-white/20 hover:text-white transition-all underline"
+                  className="mt-3 text-[9px] font-black uppercase tracking-widest text-white/20 hover:text-white transition-all underline"
                 >
                   Dismiss
                 </button>
@@ -315,72 +470,11 @@ export const WorkdayPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Add Task modal */}
-      <Modal
+      <AddTaskModal
         isOpen={isAddingTask}
         onClose={() => setIsAddingTask(false)}
-        title="New Task"
-      >
-        <form className="space-y-6" onSubmit={handleAddTask}>
-          <div className="space-y-2">
-            <label className={THEME.label} htmlFor="task-title">
-              Task Name
-            </label>
-            <input
-              id="task-title"
-              name="title"
-              required
-              placeholder="What needs doing?"
-              className={`${THEME.input} w-full`}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className={THEME.label} htmlFor="task-energy">
-                Energy Band
-              </label>
-              <select
-                id="task-energy"
-                name="energy"
-                defaultValue="Medium"
-                className={`${THEME.input} w-full`}
-              >
-                {ENERGY_LEVELS.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className={THEME.label} htmlFor="task-project">
-                Project
-              </label>
-              <select
-                id="task-project"
-                name="project"
-                className={`${THEME.input} w-full`}
-              >
-                <option value="">None</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className={`${THEME.buttonPrimary} w-full py-4 text-xs font-black uppercase tracking-widest shadow-lg shadow-pilot-orange/20`}
-          >
-            Add Task
-          </button>
-        </form>
-      </Modal>
+        defaultZone={currentZone}
+      />
     </div>
   );
 };

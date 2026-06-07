@@ -1,7 +1,8 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import { Task, EnergyLevel, DailyReport } from '@/types';
+import { Task, DailyReport } from '@/types';
+import { ENV } from '@/lib/env';
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+const API_KEY = ENV.GEMINI_API_KEY || undefined;
 
 /**
  * Lazily initialises the Gemini client only when an API key is available.
@@ -33,11 +34,9 @@ const MODELS = {
 export async function generateDailyReport(
   completedTasks: Task[],
   notes: string,
-  energy: EnergyLevel
 ): Promise<string> {
   const prompt = `
     Generate a friendly, encouraging end-of-day report.
-    User's energy today was ${energy}.
     They completed these tasks: ${completedTasks.map((t) => t.title).join(', ') || 'none'}.
     Daily notes: ${notes || 'none'}.
 

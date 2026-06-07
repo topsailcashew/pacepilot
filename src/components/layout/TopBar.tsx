@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Menu, Bell } from 'lucide-react';
+import { Menu, Bell, Plus, Sun, Moon } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useClock } from '@/hooks/useClock';
 import { useAppStore } from '@/store/appStore';
@@ -8,15 +8,19 @@ import { NotificationPanel } from './NotificationPanel';
 
 interface TopBarProps {
   toggleSidebar: () => void;
+  onAddTask: () => void;
 }
 
 const ROUTE_TITLES: Record<string, string> = {
   '/': 'Daily Dashboard',
+  '/tasks': 'Tasks',
   '/planner': 'Weekly Planner',
   '/projects': 'Projects',
   '/calendar': 'Calendar',
-  '/recurring': 'Consistent Habits',
+  '/recurring': 'Recurring Tasks',
   '/reports': 'Insights',
+  '/mail': 'Mail',
+  '/files': 'Files',
   '/profile': 'User Profile',
 };
 
@@ -25,9 +29,11 @@ const ROUTE_TITLES: Record<string, string> = {
  * Title updates based on the current route. The bell opens a derived notification panel
  * computed from existing store data (overdue tasks, today's events, habits, report reminder).
  */
-export const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
+export const TopBar: React.FC<TopBarProps> = ({ toggleSidebar, onAddTask }) => {
   const now = useClock();
   const { pathname } = useLocation();
+  const theme = useAppStore((s) => s.theme);
+  const toggleTheme = useAppStore((s) => s.toggleTheme);
   const navigate = useNavigate();
 
   // Notification state
@@ -102,7 +108,27 @@ export const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
         </div>
       </div>
 
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-4">
+        {/* Global quick-add task */}
+        <button
+          onClick={onAddTask}
+          aria-label="Add new task"
+          title="Add task (anywhere)"
+          className="flex items-center gap-2 px-4 py-2 bg-pilot-orange hover:bg-pilot-orange/90 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all active:scale-95 shadow-lg shadow-pilot-orange/20"
+        >
+          <Plus size={14} /> Task
+        </button>
+
+        {/* Theme toggle */}
+        <button
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all"
+        >
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+
         {/* System status badge */}
         <div className="hidden sm:flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-full">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />

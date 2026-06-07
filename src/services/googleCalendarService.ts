@@ -9,6 +9,7 @@
  */
 
 import { account } from '@/lib/appwrite';
+import { gFetch } from '@/lib/googleApi';
 import type { CalendarEvent } from '@/types';
 
 const CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
@@ -67,33 +68,22 @@ function mapGoogleEvent(e: GoogleEvent): MappedGoogleEvent | null {
   };
 }
 
-// ─── Auth check ───────────────────────────────────────────────────────────────
-
-async function authorisedFetch(
-  token: string,
-  url: string,
-  options: RequestInit = {}
-): Promise<Response> {
-  return fetch(url, {
-    ...options,
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      ...(options.headers ?? {}),
-    },
-  });
-}
-
 // ─── Public API ───────────────────────────────────────────────────────────────
 
+export interface MappedGoogleEventWithCalendar extends MappedGoogleEvent {
+  googleCalendarId: string;
+  calendarColor: string; // hex background color of the calendar
+}
+
 /**
- * Fetch Google Calendar events between two ISO datetime strings.
- * Returns [] on auth errors (caller should prompt re-auth).
+ * Fetch events from a single calendar by its ID.
+ * Returns [] on auth/permission errors.
  */
 export async function fetchGoogleCalendarEvents(
   token: string,
   timeMin: string,
-  timeMax: string
+  timeMax: string,
+  calendarId = 'primary'
 ): Promise<MappedGoogleEvent[]> {
   const params = new URLSearchParams({
     timeMin,
@@ -103,8 +93,9 @@ export async function fetchGoogleCalendarEvents(
     maxResults: '250',
   });
 
-  const res = await authorisedFetch(token, `${CALENDAR_BASE}?${params}`);
-  if (res.status === 401) return [];
+  const base = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+  const res = await gFetch(token, `${base}?${params}`);
+  if (res.status === 401 || res.status === 403 || res.status === 404) return [];
   if (!res.ok) throw new Error(`Google Calendar fetch failed: HTTP ${res.status}`);
 
   const data = (await res.json()) as { items?: GoogleEvent[] };
@@ -112,6 +103,43 @@ export async function fetchGoogleCalendarEvents(
     const mapped = mapGoogleEvent(e);
     return mapped ? [mapped] : [];
   });
+}
+
+/**
+ * Fetch events from ALL subscribed calendars in parallel.
+ * Each event is tagged with the calendarId and calendar color.
+ */
+export async function fetchAllGoogleCalendarEvents(
+  token: string,
+  timeMin: string,
+  timeMax: string
+): Promise<MappedGoogleEventWithCalendar[]> {
+  // First get the list of calendars
+  let calendars: GoogleCalendarMeta[] = [];
+  try {
+    calendars = await listGoogleCalendars(token);
+  } catch {
+    // Fall back to primary only
+    calendars = [{ id: 'primary', summary: 'Primary', accessRole: 'owner', primary: true }];
+  }
+  if (calendars.length === 0) {
+    calendars = [{ id: 'primary', summary: 'Primary', accessRole: 'owner', primary: true }];
+  }
+
+  // Fetch all in parallel
+  const results = await Promise.allSettled(
+    calendars.map((cal) =>
+      fetchGoogleCalendarEvents(token, timeMin, timeMax, cal.id).then((events) =>
+        events.map((e) => ({
+          ...e,
+          googleCalendarId: cal.id,
+          calendarColor: cal.backgroundColor ?? '#4285f4',
+        }))
+      )
+    )
+  );
+
+  return results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
 }
 
 /**
@@ -138,7 +166,7 @@ export async function createGoogleCalendarEvent(
     body.end = { date: event.eventDate };
   }
 
-  const res = await authorisedFetch(token, CALENDAR_BASE, {
+  const res = await gFetch(token, CALENDAR_BASE, {
     method: 'POST',
     body: JSON.stringify(body),
   });
@@ -150,6 +178,35 @@ export async function createGoogleCalendarEvent(
   return created.id;
 }
 
+// ─── Calendar list ────────────────────────────────────────────────────────────
+
+export interface GoogleCalendarMeta {
+  id: string;
+  summary: string;
+  description?: string;
+  backgroundColor?: string;
+  foregroundColor?: string;
+  primary?: boolean;
+  accessRole: string;
+}
+
+/**
+ * List all calendars the user is subscribed to.
+ * Returns [] on auth error.
+ */
+export async function listGoogleCalendars(
+  token: string
+): Promise<GoogleCalendarMeta[]> {
+  const res = await gFetch(
+    token,
+    'https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=100'
+  );
+  if (res.status === 401 || res.status === 403) return [];
+  if (!res.ok) throw new Error(`Calendar list failed: HTTP ${res.status}`);
+  const data = (await res.json()) as { items?: GoogleCalendarMeta[] };
+  return data.items ?? [];
+}
+
 /**
  * Delete a Google Calendar event by its Google event ID.
  * Silently succeeds if the event is already gone (404).
@@ -158,7 +215,7 @@ export async function deleteGoogleCalendarEvent(
   token: string,
   googleEventId: string
 ): Promise<void> {
-  const res = await authorisedFetch(token, `${CALENDAR_BASE}/${googleEventId}`, {
+  const res = await gFetch(token, `${CALENDAR_BASE}/${googleEventId}`, {
     method: 'DELETE',
   });
   if (res.status === 401 || res.status === 404 || res.status === 204) return;
