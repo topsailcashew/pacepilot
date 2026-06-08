@@ -41,12 +41,10 @@ function addDays(iso: string, n: number): string {
   return isoDate(d);
 }
 
-/** Returns Monday-anchored week start for the given ISO date */
+/** Returns Sunday-anchored week start for the given ISO date */
 function weekStart(iso: string): string {
   const d = new Date(iso + 'T00:00:00');
-  const day = d.getDay(); // 0=Sun
-  const diff = day === 0 ? -6 : 1 - day; // shift to Monday
-  d.setDate(d.getDate() + diff);
+  d.setDate(d.getDate() - d.getDay()); // getDay() 0=Sun, subtract to reach Sunday
   return isoDate(d);
 }
 

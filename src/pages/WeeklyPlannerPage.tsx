@@ -5,7 +5,8 @@ import { AddEventModal } from '@/components/ui/AddEventModal';
 import { AddTaskModal } from '@/components/tasks/AddTaskModal';
 import type { CalendarEvent } from '@/types';
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// Week starts Sunday
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const ZONE_COLOR: Record<string, string> = {
   Blue:   'bg-blue-500',
@@ -15,11 +16,10 @@ const ZONE_COLOR: Record<string, string> = {
   Red:    'bg-red-500',
 };
 
-function getWeekMonday(date: Date): Date {
+/** Return the Sunday that starts the week containing `date`. */
+function getWeekSunday(date: Date): Date {
   const d = new Date(date);
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
+  d.setDate(d.getDate() - d.getDay()); // getDay() 0=Sun, so subtract 0..6
   d.setHours(0, 0, 0, 0);
   return d;
 }
@@ -31,13 +31,13 @@ export const WeeklyPlannerPage: React.FC = () => {
   const [addTaskDate, setAddTaskDate] = useState<string | null>(null);
 
   const today = new Date();
-  const baseMonday = getWeekMonday(today);
-  const monday = new Date(baseMonday);
-  monday.setDate(baseMonday.getDate() + weekOffset * 7);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
+  const baseSunday = getWeekSunday(today);
+  const sunday = new Date(baseSunday);
+  sunday.setDate(baseSunday.getDate() + weekOffset * 7);
+  const saturday = new Date(sunday);
+  saturday.setDate(sunday.getDate() + 6);
 
-  const weekLabel = `${monday.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${sunday.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  const weekLabel = `${sunday.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${saturday.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
   const handleAddEvent = (event: CalendarEvent) => {
     addCalendarEvent(event);
@@ -45,8 +45,8 @@ export const WeeklyPlannerPage: React.FC = () => {
   };
 
   return (
-    /* Full-height flex column — fills the scrollable content area */
-    <div className="flex flex-col h-full min-h-0 gap-4 animate-in fade-in duration-500">
+    /* On mobile: normal scrolling vertical stack. On desktop: full-height flex. */
+    <div className="flex flex-col gap-4 animate-in fade-in duration-500 pb-6 lg:h-full lg:min-h-0">
 
       {/* ── Compact header row ───────────────────────────────────────────── */}
       <div className="flex items-center justify-between shrink-0 px-1">
@@ -79,12 +79,13 @@ export const WeeklyPlannerPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── 7-column grid — fills remaining height, scrolls horizontally on mobile ── */}
-      <div className="flex-1 min-h-0 overflow-x-auto -mx-1 px-1">
-      <div className="grid gap-2 flex-1 min-h-0 h-full" style={{ gridTemplateColumns: 'repeat(7, minmax(140px, 1fr))' }}>
+      {/* ── 7-column grid ───────────────────────────────────────────────────
+          Mobile:  single column, each day full-width, stacked vertically
+          Desktop: 7 equal columns filling the remaining viewport height   */}
+      <div className="grid grid-cols-1 lg:grid-cols-7 gap-3 lg:flex-1 lg:min-h-0">
         {DAYS.map((day, idx) => {
-          const d = new Date(monday);
-          d.setDate(monday.getDate() + idx);
+          const d = new Date(sunday);
+          d.setDate(sunday.getDate() + idx);
           const dateStr = d.toISOString().split('T')[0];
 
           const isToday =
@@ -105,7 +106,7 @@ export const WeeklyPlannerPage: React.FC = () => {
           return (
             <div
               key={day}
-              className={`flex flex-col min-h-0 rounded-2xl border transition-colors ${
+              className={`flex flex-col rounded-2xl border transition-colors ${
                 isToday
                   ? 'border-pilot-orange/40 bg-pilot-orange/[0.04]'
                   : 'border-white/[0.06] bg-white/[0.02]'
@@ -113,11 +114,11 @@ export const WeeklyPlannerPage: React.FC = () => {
             >
               {/* Day header */}
               <div
-                className={`shrink-0 px-3 pt-4 pb-3 border-b ${
+                className={`shrink-0 px-3 pt-4 pb-3 border-b flex items-center justify-between lg:flex-col lg:items-start ${
                   isToday ? 'border-pilot-orange/20' : 'border-white/[0.05]'
                 }`}
               >
-                <div className="flex items-baseline justify-between">
+                <div className="flex items-center gap-3 lg:gap-0 lg:flex-col lg:items-start">
                   <span
                     className={`text-[9px] font-black uppercase tracking-widest ${
                       isToday ? 'text-pilot-orange' : isPast ? 'text-white/20' : 'text-white/40'
@@ -125,34 +126,30 @@ export const WeeklyPlannerPage: React.FC = () => {
                   >
                     {day}
                   </span>
-                  {total > 0 && (
-                    <span className={`text-[8px] font-black tabular-nums ${isToday ? 'text-pilot-orange/60' : 'text-white/20'}`}>
-                      {total}
-                    </span>
-                  )}
+                  <span
+                    className={`text-xl lg:text-2xl font-black leading-none lg:mt-1 ${
+                      isToday ? 'text-pilot-orange' : isPast ? 'text-white/25' : 'text-white'
+                    }`}
+                  >
+                    {d.getDate()}
+                  </span>
                 </div>
-                <span
-                  className={`text-2xl font-black leading-none mt-1 block ${
-                    isToday
-                      ? 'text-pilot-orange'
-                      : isPast
-                      ? 'text-white/25'
-                      : 'text-white'
-                  }`}
-                >
-                  {d.getDate()}
-                </span>
+                {total > 0 && (
+                  <span className={`text-[8px] font-black tabular-nums ${isToday ? 'text-pilot-orange/60' : 'text-white/20'}`}>
+                    {total} item{total !== 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
 
-              {/* Scrollable content */}
-              <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-2 space-y-1.5">
+              {/* Content — on mobile just shows naturally; on desktop scrolls within column */}
+              <div className="lg:flex-1 lg:min-h-0 overflow-y-auto no-scrollbar p-2 space-y-1.5">
 
                 {/* Events */}
                 {dayEvents.map((ev) => (
                   <div
                     key={ev.id}
                     title={ev.loc ? `${ev.title} @ ${ev.loc}` : ev.title}
-                    className="flex items-start gap-1.5 px-2.5 py-2 rounded-xl bg-blue-500/10 border border-blue-500/15 group cursor-default"
+                    className="flex items-start gap-1.5 px-2.5 py-2 rounded-xl bg-blue-500/10 border border-blue-500/15"
                   >
                     <Clock size={9} className="text-blue-400/70 mt-0.5 shrink-0" />
                     <div className="min-w-0">
@@ -161,7 +158,7 @@ export const WeeklyPlannerPage: React.FC = () => {
                           {ev.time}
                         </span>
                       )}
-                      <span className="text-[10px] font-bold text-blue-300/80 leading-tight break-words uppercase tracking-wide">
+                      <span className="text-[10px] font-bold text-blue-300/80 leading-tight uppercase tracking-wide">
                         {ev.title}
                       </span>
                     </div>
@@ -175,7 +172,7 @@ export const WeeklyPlannerPage: React.FC = () => {
                     className={`px-2.5 py-2 rounded-xl border transition-all ${
                       t.isCompleted
                         ? 'bg-white/[0.01] border-white/[0.04] opacity-30'
-                        : 'bg-white/[0.03] border-white/[0.07] hover:border-pilot-orange/25 hover:bg-pilot-orange/[0.03]'
+                        : 'bg-white/[0.03] border-white/[0.07] hover:border-pilot-orange/25'
                     }`}
                   >
                     <span
@@ -191,10 +188,10 @@ export const WeeklyPlannerPage: React.FC = () => {
                   </div>
                 ))}
 
-                {/* Empty state */}
                 {total === 0 && (
-                  <div className="h-full flex items-center justify-center pb-8 opacity-0 group-hover:opacity-100">
-                  </div>
+                  <p className="text-[9px] text-white/10 uppercase tracking-widest text-center py-3 hidden lg:block">
+                    Empty
+                  </p>
                 )}
               </div>
 
@@ -216,8 +213,7 @@ export const WeeklyPlannerPage: React.FC = () => {
             </div>
           );
         })}
-      </div>{/* end grid */}
-      </div>{/* end overflow-x-auto */}
+      </div>
 
       <AddEventModal
         isOpen={addEventDate !== null}
