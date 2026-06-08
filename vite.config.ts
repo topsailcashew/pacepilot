@@ -8,9 +8,13 @@ import react from '@vitejs/plugin-react';
  * Environment variables must be prefixed with VITE_ to be exposed to the
  * client bundle (e.g. VITE_GEMINI_API_KEY).  See .env.example for details.
  */
+const isElectronBuild = process.env.BUILD_TARGET === 'electron';
+
 export default defineConfig({
+  // Electron loads files via file:// so base must be './' not '/'
+  base: isElectronBuild ? './' : '/',
   server: {
-    port: 3000,
+    port: 5173,
     host: '0.0.0.0',
   },
   plugins: [react()],
