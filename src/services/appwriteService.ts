@@ -145,11 +145,15 @@ export function signInWithGoogle(): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isElectron = !!(window as any).electronAPI?.isElectron;
 
+  // In Electron production the app runs from file://, which Appwrite rejects as
+  // a redirect origin. Instead we use a localhost sentinel URL that the main
+  // process intercepts via will-navigate — the session cookie is set by the
+  // time Appwrite issues the redirect, so account.get() works immediately.
   const successUrl = isElectron
-    ? 'pacepilot://auth/callback'
+    ? 'http://localhost:42424/auth/callback'
     : `${window.location.origin}/#/`;
   const failureUrl = isElectron
-    ? 'pacepilot://auth/failure'
+    ? 'http://localhost:42424/auth/failure'
     : `${window.location.origin}/#/login`;
 
   account.createOAuth2Session(

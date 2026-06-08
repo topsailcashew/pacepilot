@@ -23,8 +23,8 @@ export function useElectronOAuth(): void {
     const api = (window as any).electronAPI;
     if (!api?.onOAuthCallback) return;
 
-    api.onOAuthCallback(async (url: string) => {
-      if (url.startsWith('pacepilot://auth/failure')) {
+    api.onOAuthCallback(async (result: string) => {
+      if (result === 'failure') {
         addToast('error', 'Google sign-in failed. Please try again.');
         navigate('/login');
         return;
