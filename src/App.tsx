@@ -25,6 +25,7 @@ const FilesPage          = lazy(() => import('@/pages/FilesPage').then((m) => ({
 import { useAppStore } from '@/store/appStore';
 import { useDataLoader } from '@/hooks/useDataLoader';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useElectronOAuth } from '@/hooks/useElectronOAuth';
 
 /**
  * Root application shell.
@@ -32,6 +33,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
  */
 const AppShell: React.FC = () => {
   useDataLoader();
+  useElectronOAuth(); // no-op in browser; handles pacepilot:// deep-link OAuth in Electron
 
   const isLoading = useAppStore((s) => s.isLoading);
   const user = useAppStore((s) => s.user);

@@ -129,14 +129,33 @@ export async function getCurrentUser(): Promise<Models.User<Models.Preferences> 
 
 /**
  * Trigger Google OAuth2 sign-in via Appwrite.
- * This causes a full browser redirect — no await needed.
+ *
+ * In Electron we can't use file:// or localhost as a redirect URI that Appwrite
+ * trusts, so we use a custom deep-link protocol instead:
+ *   success → pacepilot://auth/callback
+ *   failure → pacepilot://auth/failure
+ *
+ * The main process catches these via app.on('open-url') and forwards them to
+ * the renderer via IPC. The renderer then calls restoreSession() to pick up
+ * the newly-created Appwrite session cookie.
+ *
+ * In a normal browser the origin-based URLs are used as before.
  */
 export function signInWithGoogle(): void {
-  const origin = window.location.origin;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isElectron = !!(window as any).electronAPI?.isElectron;
+
+  const successUrl = isElectron
+    ? 'pacepilot://auth/callback'
+    : `${window.location.origin}/#/`;
+  const failureUrl = isElectron
+    ? 'pacepilot://auth/failure'
+    : `${window.location.origin}/#/login`;
+
   account.createOAuth2Session(
     OAuthProvider.Google,
-    `${origin}/#/`,
-    `${origin}/#/login`,
+    successUrl,
+    failureUrl,
     [
       'https://www.googleapis.com/auth/calendar',
       'https://www.googleapis.com/auth/tasks',

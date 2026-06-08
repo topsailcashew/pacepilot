@@ -25,6 +25,12 @@
       "electron/**/*",
       "public/icon-512.png"
     ],
+    "protocols": [
+      {
+        "name": "Pace Pilot",
+        "schemes": ["pacepilot"]
+      }
+    ],
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "public/icon-512.png",

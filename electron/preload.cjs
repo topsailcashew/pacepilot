@@ -7,5 +7,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
-  // Add any safe IPC calls here as the app grows
+  isElectron: true,
+
+  // Called by the renderer to register a one-time listener for the OAuth
+  // deep-link callback. Main process sends 'oauth-callback' with the full URL.
+  onOAuthCallback: (callback) => {
+    ipcRenderer.once('oauth-callback', (_event, url) => callback(url));
+  },
 });
