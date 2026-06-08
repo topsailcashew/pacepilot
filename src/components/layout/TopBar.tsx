@@ -85,36 +85,36 @@ export const TopBar: React.FC<TopBarProps> = ({ toggleSidebar, onAddTask }) => {
     (pathname.startsWith('/projects') ? 'Projects' : 'Pace Pilot');
 
   return (
-    <header className="flex items-center justify-between mb-10 px-2 shrink-0">
-      <div className="flex items-center gap-4">
+    <header className="flex items-center justify-between mb-6 sm:mb-10 px-2 shrink-0 gap-2">
+      <div className="flex items-center gap-3 min-w-0">
         {/* Hamburger — visible only on small screens */}
         <button
           onClick={toggleSidebar}
           aria-label="Toggle navigation"
-          className="lg:hidden p-2 text-white/40 hover:text-white bg-white/5 rounded-lg border border-white/10"
+          className="lg:hidden shrink-0 p-2 text-white/40 hover:text-white bg-white/5 rounded-lg border border-white/10"
         >
           <Menu size={20} />
         </button>
 
-        <div>
-          <h2 className="text-2xl font-black text-white tracking-tight uppercase">
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-2xl font-black text-white tracking-tight uppercase truncate">
             {title}
           </h2>
-          <p className="text-[10px] text-white/30 font-bold mt-1 uppercase tracking-[0.2em]">
+          <p className="text-[9px] sm:text-[10px] text-white/30 font-bold mt-0.5 uppercase tracking-[0.15em] sm:tracking-[0.2em] whitespace-nowrap">
             {now.toLocaleDateString()} • {now.toLocaleTimeString()}
           </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
         {/* Global quick-add task */}
         <button
           onClick={onAddTask}
           aria-label="Add new task"
           title="Add task (anywhere)"
-          className="flex items-center gap-2 px-4 py-2 bg-pilot-orange hover:bg-pilot-orange/90 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all active:scale-95 shadow-lg shadow-pilot-orange/20"
+          className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-pilot-orange hover:bg-pilot-orange/90 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all active:scale-95 shadow-lg shadow-pilot-orange/20"
         >
-          <Plus size={14} /> Task
+          <Plus size={14} /><span className="hidden xs:inline">Task</span>
         </button>
 
         {/* Theme toggle */}
@@ -122,13 +122,13 @@ export const TopBar: React.FC<TopBarProps> = ({ toggleSidebar, onAddTask }) => {
           onClick={toggleTheme}
           aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
-          className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all"
+          className="hidden sm:block p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all"
         >
           {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
         {/* System status badge */}
-        <div className="hidden sm:flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-full">
+        <div className="hidden lg:flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-full">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">
             System Ready

@@ -121,16 +121,16 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           </h4>
 
           {!isExpanded && (
-            <div className="flex items-center gap-3 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               {task.zone && ZONES[task.zone] && (
-                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${ZONES[task.zone].chipBg} ${ZONES[task.zone].text}`}>
-                  {ZONES[task.zone].label}
+                <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${ZONES[task.zone].chipBg} ${ZONES[task.zone].text}`}>
+                  {ZONES[task.zone].description}
                 </span>
               )}
               {currentProject && (
-                <div className="flex items-center gap-1.5 text-white/20">
-                  <Folder size={10} className="text-white/40" />
-                  <span className="text-[10px] font-black uppercase tracking-widest truncate">
+                <div className="flex items-center gap-1 text-white/20">
+                  <Folder size={9} className="text-white/30 shrink-0" />
+                  <span className="text-[9px] font-black uppercase tracking-widest truncate max-w-[120px]">
                     {currentProject.name}
                   </span>
                 </div>

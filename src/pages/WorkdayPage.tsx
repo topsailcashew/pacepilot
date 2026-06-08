@@ -283,12 +283,12 @@ export const WorkdayPage: React.FC = () => {
             {overdueTasks.slice(0, 5).map((task) => (
               <div
                 key={task.id}
-                className="flex items-center gap-3 bg-red-500/5 border border-red-500/10 rounded-lg px-3 py-2.5"
+                className="flex items-start gap-3 bg-red-500/5 border border-red-500/10 rounded-lg px-3 py-2.5"
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${ZONES[task.zone]?.bg ?? 'bg-white/20'} shrink-0`} />
-                <span className="text-xs font-bold text-white/60 flex-1 truncate">{task.title}</span>
-                <span className="text-[9px] text-red-400/60 font-black uppercase tracking-widest shrink-0">
-                  Due {task.dueDate}
+                <span className={`w-1.5 h-1.5 rounded-full mt-1 ${ZONES[task.zone]?.bg ?? 'bg-white/20'} shrink-0`} />
+                <span className="text-xs font-bold text-white/60 flex-1 leading-snug">{task.title}</span>
+                <span className="text-[9px] text-red-400/60 font-black uppercase tracking-widest shrink-0 mt-0.5">
+                  {task.dueDate?.slice(5)}
                 </span>
               </div>
             ))}
@@ -320,13 +320,18 @@ export const WorkdayPage: React.FC = () => {
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all"
               >
                 <span className={`w-2 h-2 rounded-full shrink-0 ${ZONES[task.zone]?.bg ?? 'bg-white/20'}`} />
-                <span className="flex-1 text-sm font-bold text-white/70 truncate">{task.title}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="block text-sm font-bold text-white/70 leading-snug">{task.title}</span>
+                  <span className={`inline text-[8px] font-black uppercase tracking-widest sm:hidden ${ZONES[task.zone]?.text ?? 'text-white/30'}`}>
+                    {ZONES[task.zone]?.description ?? task.zone}
+                  </span>
+                </div>
                 {task.dueDate && (
-                  <span className="text-[9px] font-black text-white/20 shrink-0 uppercase tracking-widest">
-                    <CalendarClock size={10} className="inline mr-1" />{task.dueDate}
+                  <span className="hidden sm:flex text-[9px] font-black text-white/20 shrink-0 uppercase tracking-widest items-center gap-1">
+                    <CalendarClock size={10} />{task.dueDate}
                   </span>
                 )}
-                <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${ZONES[task.zone]?.chipBg ?? 'bg-white/5'} ${ZONES[task.zone]?.text ?? 'text-white/30'}`}>
+                <span className={`hidden sm:inline text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full shrink-0 ${ZONES[task.zone]?.chipBg ?? 'bg-white/5'} ${ZONES[task.zone]?.text ?? 'text-white/30'}`}>
                   {ZONES[task.zone]?.description ?? task.zone}
                 </span>
               </div>
@@ -352,20 +357,29 @@ export const WorkdayPage: React.FC = () => {
         </div>
 
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div>
-            <h3 className="text-lg font-black text-white uppercase tracking-widest">Tasks</h3>
-            <p className="text-[9px] font-bold text-white/20 uppercase tracking-[0.2em] mt-1">
-              {zoneFilter === 'All' ? 'All zones' : ZONES[zoneFilter].label} · {filteredTasks.length} pending
-            </p>
+        <div className="flex flex-col gap-3 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-black text-white uppercase tracking-widest">Tasks</h3>
+              <p className="text-[9px] font-bold text-white/20 uppercase tracking-[0.2em] mt-1">
+                {zoneFilter === 'All' ? 'All zones' : ZONES[zoneFilter].label} · {filteredTasks.length} pending
+              </p>
+            </div>
+            <button
+              onClick={handleEndDay}
+              disabled={isGeneratingReport}
+              className={`${THEME.buttonSecondary} px-4 py-2 text-[10px] font-black uppercase tracking-widest disabled:opacity-50`}
+            >
+              {isGeneratingReport ? '…' : 'End Day'}
+            </button>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="bg-white/5 border border-white/10 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2">
+            <div className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 flex-1 sm:flex-none">
               <select
                 value={zoneFilter}
                 onChange={(e) => setZoneFilter(e.target.value as TaskZone | 'All')}
-                className="bg-transparent text-[10px] font-black uppercase tracking-widest text-white/60 focus:outline-none cursor-pointer"
+                className="bg-transparent text-[10px] font-black uppercase tracking-widest text-white/60 focus:outline-none cursor-pointer w-full"
               >
                 <option value="All">All Zones</option>
                 {ZONE_KEYS.map((z) => (
@@ -376,17 +390,9 @@ export const WorkdayPage: React.FC = () => {
 
             <button
               onClick={() => setIsAddingTask(true)}
-              className={`${THEME.buttonPrimary} px-4 py-2 text-[10px] font-black uppercase tracking-widest flex items-center gap-2`}
+              className={`${THEME.buttonPrimary} px-4 py-2 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shrink-0`}
             >
-              <Plus size={14} /> Add Task
-            </button>
-
-            <button
-              onClick={handleEndDay}
-              disabled={isGeneratingReport}
-              className={`${THEME.buttonSecondary} px-5 py-2 text-[10px] font-black uppercase tracking-widest disabled:opacity-50`}
-            >
-              {isGeneratingReport ? 'Generating…' : 'End Day'}
+              <Plus size={14} /><span className="hidden xs:inline">Add </span>Task
             </button>
           </div>
         </div>

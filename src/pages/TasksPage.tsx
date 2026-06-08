@@ -89,19 +89,27 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, projects, onToggle, onAssign })
             : <Circle size={18} />}
         </button>
 
-        {/* Title */}
-        <span className={`flex-1 text-sm font-bold truncate ${
-          task.isCompleted ? 'line-through text-white/20' : 'text-white/80'
-        }`}>
-          {task.title}
-        </span>
+        {/* Title + mobile zone */}
+        <div className="flex-1 min-w-0">
+          <span className={`block text-sm font-bold leading-snug ${
+            task.isCompleted ? 'line-through text-white/20' : 'text-white/80'
+          }`}>
+            {task.title}
+          </span>
+          {/* Zone chip — below title on mobile, inline on desktop */}
+          {task.zone && (
+            <span className="sm:hidden mt-1 inline-block">
+              <ZoneChip zone={task.zone} />
+            </span>
+          )}
+        </div>
 
-        {/* Zone chip */}
-        {task.zone && <ZoneChip zone={task.zone} />}
+        {/* Zone chip — desktop only */}
+        {task.zone && <span className="hidden sm:inline"><ZoneChip zone={task.zone} /></span>}
 
         {/* Due date */}
         {task.dueDate && (
-          <span className="text-[9px] font-bold text-white/30 hidden sm:block">
+          <span className="text-[9px] font-bold text-white/30 hidden sm:block shrink-0">
             {new Date(task.dueDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
           </span>
         )}
@@ -387,37 +395,37 @@ export const TasksPage: React.FC = () => {
     <div className="animate-in fade-in duration-500 pb-12 space-y-8">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4 px-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-2">
         <p className="text-[10px] text-white/30 font-bold uppercase tracking-[0.2em]">
-          {completedTasks}/{totalTasks} complete · {syncedTasks} synced with Google
+          {completedTasks}/{totalTasks} complete · {syncedTasks} synced
         </p>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {googleAccessToken && (
             <button
               onClick={handleSync}
               disabled={syncing}
               title="Sync from Google Tasks"
-              className={`${THEME.buttonSecondary} flex items-center gap-2 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest`}
+              className={`${THEME.buttonSecondary} flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest`}
             >
               {syncing
                 ? <Loader size={13} className="animate-spin" />
                 : <RefreshCw size={13} />}
-              Sync Google
+              <span className="hidden sm:inline">Sync </span>Google
             </button>
           )}
           <button
             onClick={() => setAddModal({ open: true })}
-            className={`${THEME.buttonPrimary} flex items-center gap-2 px-5 py-2.5 text-[10px] font-black uppercase tracking-widest`}
+            className={`${THEME.buttonPrimary} flex items-center gap-2 px-4 py-2 text-[10px] font-black uppercase tracking-widest`}
           >
-            <Plus size={14} /> New Task
+            <Plus size={14} /><span className="hidden xs:inline">New </span>Task
           </button>
         </div>
       </div>
 
       {/* ── Filter bar ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
         {/* Search */}
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative flex-1 sm:max-w-xs">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" />
           <input
             type="text"
