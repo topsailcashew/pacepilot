@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AppState, Task, Project, RecurringTask, CalendarEvent, User, Toast, RecurringStatus } from '@/types';
+import type { AppState, Task, Project, CalendarEvent, User, Toast } from '@/types';
 import * as db from '@/services/appwriteService';
 import { createGoogleCalendarEvent, deleteGoogleCalendarEvent } from '@/services/googleCalendarService';
 import {
@@ -34,11 +34,6 @@ interface AppStore extends AppState {
   updateCalendarEvent: (id: string, updates: Partial<CalendarEvent>) => Promise<void>;
   deleteCalendarEvent: (id: string) => Promise<void>;
 
-  // Recurring
-  toggleRecurringTask: (id: string) => Promise<void>;
-  addRecurringTask: (rt: RecurringTask) => Promise<void>;
-  deleteRecurringTask: (id: string) => Promise<void>;
-
   // Google sync
   setGoogleAccessToken: (token: string | null) => void;
 
@@ -67,7 +62,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   tasks: [],
   projects: [],
   calendarEvents: [],
-  recurringTasks: [],
   dailyReports: [],
   user: null,
   googleAccessToken: null,
@@ -251,61 +245,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
         if (removed) set((s) => ({ calendarEvents: [...s.calendarEvents, removed] }));
         get().addToast('error', 'Could not delete event from Google Calendar.');
       });
-    }
-  },
-
-  // ── Energy ─────────────────────────────────────────────────────────────────
-  // ── Recurring ──────────────────────────────────────────────────────────────
-  toggleRecurringTask: async (id) => {
-    const rt = get().recurringTasks.find((r) => r.id === id);
-    if (!rt) return;
-    const next: RecurringStatus = rt.status === 'Completed' ? 'Pending' : 'Completed';
-
-    set((s) => ({
-      recurringTasks: s.recurringTasks.map((r) =>
-        r.id === id ? { ...r, status: next } : r
-      ),
-    }));
-
-    if (!appwriteEnabled()) return;
-    try {
-      await db.updateRecurringTask(id, next);
-    } catch (err) {
-      console.error('[store] toggleRecurring:', err);
-      set((s) => ({
-        recurringTasks: s.recurringTasks.map((r) =>
-          r.id === id ? { ...r, status: rt.status } : r
-        ),
-      }));
-      get().addToast('error', 'Could not save habit update.');
-    }
-  },
-
-  addRecurringTask: async (rt) => {
-    set((s) => ({ recurringTasks: [...s.recurringTasks, rt] }));
-
-    const userId = get().user?.id;
-    if (!appwriteEnabled() || !userId) return;
-    try {
-      await db.createRecurringTask(rt, userId);
-    } catch (err) {
-      console.error('[store] addRecurringTask:', err);
-      set((s) => ({ recurringTasks: s.recurringTasks.filter((r) => r.id !== rt.id) }));
-      get().addToast('error', 'Could not save new habit — please retry.');
-    }
-  },
-
-  deleteRecurringTask: async (id) => {
-    const removed = get().recurringTasks.find((r) => r.id === id);
-    set((s) => ({ recurringTasks: s.recurringTasks.filter((r) => r.id !== id) }));
-
-    if (!appwriteEnabled()) return;
-    try {
-      await db.deleteRecurringTask(id);
-    } catch (err) {
-      console.error('[store] deleteRecurringTask:', err);
-      if (removed) set((s) => ({ recurringTasks: [...s.recurringTasks, removed] }));
-      get().addToast('error', 'Could not delete habit — please retry.');
     }
   },
 

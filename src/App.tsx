@@ -17,7 +17,6 @@ const TasksPage          = lazy(() => import('@/pages/TasksPage').then((m) => ({
 const WeeklyPlannerPage  = lazy(() => import('@/pages/WeeklyPlannerPage').then((m) => ({ default: m.WeeklyPlannerPage })));
 const ProjectsPage       = lazy(() => import('@/pages/ProjectsPage').then((m) => ({ default: m.ProjectsPage })));
 const CalendarPage       = lazy(() => import('@/pages/CalendarPage').then((m) => ({ default: m.CalendarPage })));
-const RecurringTasksPage = lazy(() => import('@/pages/RecurringTasksPage').then((m) => ({ default: m.RecurringTasksPage })));
 const ReportsPage        = lazy(() => import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage })));
 const ProfilePage        = lazy(() => import('@/pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const MailPage           = lazy(() => import('@/pages/MailPage').then((m) => ({ default: m.MailPage })));
@@ -43,8 +42,7 @@ const AppShell: React.FC = () => {
 
   const tasks = useAppStore((s) => s.tasks);
   const calendarEvents = useAppStore((s) => s.calendarEvents);
-  const recurringTasks = useAppStore((s) => s.recurringTasks);
-  usePushNotifications(tasks, calendarEvents, recurringTasks);
+  usePushNotifications(tasks, calendarEvents);
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -122,14 +120,6 @@ const AppShell: React.FC = () => {
               element={
                 <ProtectedRoute>
                   <CalendarPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/recurring"
-              element={
-                <ProtectedRoute>
-                  <RecurringTasksPage />
                 </ProtectedRoute>
               }
             />

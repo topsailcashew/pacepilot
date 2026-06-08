@@ -58,7 +58,7 @@ export const SignupPage: React.FC = () => {
 
       // Seed default projects for new account
       const projects = await seedDefaultProjects(appUser.$id);
-      initializeData({ projects, tasks: [], calendarEvents: [], recurringTasks: [], dailyReports: [] });
+      initializeData({ projects, tasks: [], calendarEvents: [], dailyReports: [] });
 
       addToast('success', `Welcome to Pace Pilot, ${appUser.name}!`);
       navigate('/');

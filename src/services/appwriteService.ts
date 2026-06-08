@@ -28,11 +28,9 @@ import type {
   Task,
   Project,
   CalendarEvent,
-  RecurringTask,
   DailyReport,
   User,
   AppState,
-  RecurringStatus,
 } from '@/types';
 
 // ─── Document → Domain mappers ────────────────────────────────────────────────
@@ -75,10 +73,6 @@ function mapCalendarEvent(doc: Models.Document): CalendarEvent | null {
   // Filter out legacy documents that predate the eventDate field
   if (!event.eventDate) return null;
   return event;
-}
-
-function mapRecurringTask(doc: Models.Document): RecurringTask {
-  return fromDoc<RecurringTask>(doc);
 }
 
 function mapDailyReport(doc: Models.Document): DailyReport {
@@ -234,12 +228,11 @@ export async function loadUserData(
 ): Promise<Partial<AppState>> {
   const q = [Query.equal('userId', userId), Query.limit(100)];
 
-  const [tasksRes, projectsRes, calendarRes, recurringRes, reportsRes] =
+  const [tasksRes, projectsRes, calendarRes, reportsRes] =
     await Promise.all([
       databases.listDocuments(DB_ID, COLLECTIONS.tasks, q),
       databases.listDocuments(DB_ID, COLLECTIONS.projects, q),
       databases.listDocuments(DB_ID, COLLECTIONS.calendarEvents, q),
-      databases.listDocuments(DB_ID, COLLECTIONS.recurringTasks, q),
       databases.listDocuments(DB_ID, COLLECTIONS.dailyReports, q),
     ]);
 
@@ -250,7 +243,6 @@ export async function loadUserData(
       const e = mapCalendarEvent(d);
       return e ? [e] : [];
     }),
-    recurringTasks: recurringRes.documents.map(mapRecurringTask),
     dailyReports: reportsRes.documents.map(mapDailyReport),
   };
 }
@@ -326,36 +318,6 @@ export async function updateProject(
 
 export async function deleteProject(id: string): Promise<void> {
   await databases.deleteDocument(DB_ID, COLLECTIONS.projects, id);
-}
-
-// ─── Recurring Task CRUD ──────────────────────────────────────────────────────
-
-export async function createRecurringTask(
-  rt: RecurringTask,
-  userId: string
-): Promise<void> {
-  const { id, ...data } = rt;
-  await databases.createDocument(
-    DB_ID,
-    COLLECTIONS.recurringTasks,
-    id,
-    { ...data, userId },
-    userPermissions(userId)
-  );
-}
-
-export async function updateRecurringTask(
-  id: string,
-  status: RecurringStatus
-): Promise<void> {
-  await databases.updateDocument(DB_ID, COLLECTIONS.recurringTasks, id, {
-    status,
-    last: new Date().toLocaleDateString(),
-  });
-}
-
-export async function deleteRecurringTask(id: string): Promise<void> {
-  await databases.deleteDocument(DB_ID, COLLECTIONS.recurringTasks, id);
 }
 
 // ─── Calendar Event CRUD ─────────────────────────────────────────────────────

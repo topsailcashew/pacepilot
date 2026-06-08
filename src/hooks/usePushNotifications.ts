@@ -7,11 +7,10 @@
  * Fires for:
  *  • Calendar events starting in 10–15 minutes
  *  • Overdue tasks (once per calendar day)
- *  • Recurring tasks that are still pending (once per day at 8 am+)
  */
 
 import { useEffect, useRef } from 'react';
-import type { Task, CalendarEvent, RecurringTask } from '@/types';
+import type { Task, CalendarEvent } from '@/types';
 
 function canNotify(): boolean {
   return typeof window !== 'undefined' &&
@@ -36,7 +35,6 @@ function push(title: string, body: string) {
 export function usePushNotifications(
   tasks: Task[],
   calendarEvents: CalendarEvent[],
-  recurringTasks: RecurringTask[],
 ) {
   const sentRef = useRef<Set<string>>(new Set());
 
@@ -92,24 +90,10 @@ export function usePushNotifications(
         }
       }
 
-      // 3. Recurring tasks pending — once per day after 8 am
-      const recurringKey = `recurring-${todayIso}`;
-      if (!sentRef.current.has(recurringKey) && now.getHours() >= 8) {
-        const pending = recurringTasks.filter((rt) => rt.status !== 'Completed');
-        if (pending.length > 0) {
-          sentRef.current.add(recurringKey);
-          push(
-            `🔄 ${pending.length} recurring task${pending.length > 1 ? 's' : ''} pending`,
-            pending.length === 1
-              ? `"${pending[0].task}" is due (${pending[0].interval})`
-              : `Including "${pending[0].task}" and ${pending.length - 1} more`,
-          );
-        }
-      }
     };
 
     check(); // immediate check on mount / data change
     const id = setInterval(check, 60_000); // then every 60 s
     return () => clearInterval(id);
-  }, [tasks, calendarEvents, recurringTasks]);
+  }, [tasks, calendarEvents]);
 }

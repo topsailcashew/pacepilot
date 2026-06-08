@@ -5,7 +5,6 @@ import {
   BarChart2,
   Calendar as CalendarIcon,
   Zap,
-  RefreshCw,
   CalendarDays,
   Briefcase,
   Mail,
@@ -51,9 +50,8 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Plan',
     items: [
-      { icon: <CalendarDays size={18} />, label: 'Planner',   path: '/planner'   },
-      { icon: <CalendarIcon size={18} />, label: 'Calendar',  path: '/calendar'  },
-      { icon: <RefreshCw   size={18} />, label: 'Recurring', path: '/recurring' },
+      { icon: <CalendarDays size={18} />, label: 'Planner',  path: '/planner'  },
+      { icon: <CalendarIcon size={18} />, label: 'Calendar', path: '/calendar' },
     ],
   },
   {
@@ -94,7 +92,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         }`}
       >
         {/* Logo */}
-        <div className="px-6 pt-8 pb-6 border-b border-white/5 bg-deepnavy/50 shrink-0">
+        <Link
+          to="/"
+          onClick={close}
+          className="px-6 pt-8 pb-6 border-b border-white/5 bg-deepnavy/50 shrink-0 block hover:bg-white/[0.02] transition-colors"
+        >
           <div className="flex items-center gap-3 text-pilot-orange mb-1">
             <Zap size={22} fill="currentColor" />
             <h1 className="text-lg font-black tracking-tighter text-white uppercase">
@@ -104,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
           <p className="text-[9px] font-black uppercase tracking-[0.4em] text-white/20">
             Productivity Sidekick
           </p>
-        </div>
+        </Link>
 
         {/* Navigation */}
         <nav

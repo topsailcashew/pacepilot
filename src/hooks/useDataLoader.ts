@@ -152,7 +152,7 @@ async function loadAppwriteData(
     },
   });
 
-  // Load only recurring tasks and reports from Appwrite (projects come from Google Tasks)
+  // Load only reports from Appwrite (projects/tasks come from Google)
   const data = await loadUserData(appUser.$id);
   initializeData({ ...data, tasks: [], calendarEvents: [], projects: [] });
 

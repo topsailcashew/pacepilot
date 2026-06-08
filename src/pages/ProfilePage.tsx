@@ -57,10 +57,12 @@ const Toggle: React.FC<{ label: string; description?: string; value: boolean; on
     <button
       type="button"
       onClick={() => onChange(!value)}
-      className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${value ? 'bg-pilot-orange' : 'bg-white/10'}`}
+      aria-checked={value}
+      role="switch"
+      className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-pilot-orange/50 ${value ? 'bg-pilot-orange' : 'bg-white/10'}`}
     >
       <span
-        className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${value ? 'translate-x-5' : 'translate-x-0.5'}`}
+        className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-200 ${value ? 'translate-x-6' : 'translate-x-1'}`}
       />
     </button>
   </div>
@@ -345,65 +347,22 @@ export const ProfilePage: React.FC = () => {
           />
         </div>
 
-        {/* Drive not working? Explain why + fix */}
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 space-y-3">
-          <div className="flex items-start gap-3">
-            <span className="text-amber-400 mt-0.5 shrink-0">⚠</span>
-            <div className="space-y-1">
-              <p className="text-[11px] font-black text-amber-300 uppercase tracking-widest">
-                Google Drive / Calendar not loading?
-              </p>
-              <p className="text-[10px] text-white/40 leading-relaxed">
-                Google only grants new permission scopes when you explicitly approve them on the consent screen.
-                If Drive or Calendar shows a 403 error, your existing session is missing those scopes.
-              </p>
-            </div>
-          </div>
-
-          <div className="pl-6 space-y-2">
-            <p className="text-[10px] font-black text-white/30 uppercase tracking-widest">
-              Required steps:
-            </p>
-            <ol className="space-y-1.5 text-[10px] text-white/40 leading-relaxed list-decimal list-inside">
-              <li>
-                In your{' '}
-                <a
-                  href="https://cloud.appwrite.io"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-pilot-orange hover:underline"
-                >
-                  Appwrite Console
-                </a>
-                {' '}→ Auth → OAuth Providers → Google, make sure these scopes are listed:
-                <div className="mt-1.5 ml-4 bg-white/5 rounded-lg px-3 py-2 font-mono text-[9px] text-white/30 leading-relaxed">
-                  https://www.googleapis.com/auth/calendar<br />
-                  https://www.googleapis.com/auth/tasks<br />
-                  https://www.googleapis.com/auth/gmail.modify<br />
-                  https://www.googleapis.com/auth/drive.readonly
-                </div>
-              </li>
-              <li>Click "Reconnect Google" below — this signs you out and takes you straight to Google's consent screen so you can approve all scopes.</li>
-            </ol>
-          </div>
-
+        {googleAccessToken ? (
+          <p className="text-[10px] text-green-400/60 uppercase tracking-widest flex items-center gap-2">
+            <CheckCircle2 size={13} /> Google session active
+          </p>
+        ) : (
           <button
             onClick={handleForceReconnect}
             disabled={isReconnecting}
-            className="mt-1 flex items-center gap-2 px-5 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all disabled:opacity-60"
+            className={`${THEME.buttonPrimary} flex items-center gap-2 px-5 py-2.5 text-[10px] font-black uppercase tracking-widest disabled:opacity-60`}
           >
             {isReconnecting ? (
               <><Loader2 size={13} className="animate-spin" /> Signing out…</>
             ) : (
-              <><RefreshCw size={13} /> Reconnect Google (Force Consent Screen)</>
+              <><RefreshCw size={13} /> Connect Google</>
             )}
           </button>
-        </div>
-
-        {googleAccessToken && (
-          <p className="text-[10px] text-green-400/50 uppercase tracking-widest">
-            ✓ Google session active. If Drive or Calendar shows errors, use the reconnect button above.
-          </p>
         )}
       </Section>
 

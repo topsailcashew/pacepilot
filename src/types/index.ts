@@ -1,9 +1,5 @@
 export type TaskZone = 'Blue' | 'Green' | 'Grey' | 'Yellow' | 'Red';
 
-export type RecurringInterval = 'Daily' | 'Weekly' | 'Monthly';
-
-export type RecurringStatus = 'Completed' | 'Pending';
-
 export interface User {
   id: string;
   name: string;
@@ -49,14 +45,6 @@ export interface CalendarEvent {
   googleCalendarId?: string; // which Google calendar this came from
 }
 
-export interface RecurringTask {
-  id: string;
-  task: string;
-  status: RecurringStatus;
-  last: string;
-  interval: RecurringInterval;
-}
-
 export interface TaskBreakdownItem {
   task: string;
   collaboration: string;
@@ -78,7 +66,6 @@ export interface AppState {
   tasks: Task[];
   projects: Project[];
   calendarEvents: CalendarEvent[];
-  recurringTasks: RecurringTask[];
   dailyReports: DailyReport[];
   user: User | null;
   googleAccessToken: string | null;
@@ -93,7 +80,6 @@ export interface Toast {
 export type NotificationType =
   | 'overdue_task'
   | 'calendar_event'
-  | 'habit_due'
   | 'report_reminder';
 
 export interface AppNotification {

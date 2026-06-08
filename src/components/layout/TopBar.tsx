@@ -17,7 +17,6 @@ const ROUTE_TITLES: Record<string, string> = {
   '/planner': 'Weekly Planner',
   '/projects': 'Projects',
   '/calendar': 'Calendar',
-  '/recurring': 'Recurring Tasks',
   '/reports': 'Insights',
   '/mail': 'Mail',
   '/files': 'Files',
@@ -44,14 +43,13 @@ export const TopBar: React.FC<TopBarProps> = ({ toggleSidebar, onAddTask }) => {
   // Store slices needed for notification computation
   const tasks = useAppStore((s) => s.tasks);
   const calendarEvents = useAppStore((s) => s.calendarEvents);
-  const recurringTasks = useAppStore((s) => s.recurringTasks);
   const dailyReports = useAppStore((s) => s.dailyReports);
 
   // Computed notifications — recomputes when store data changes (not every clock tick)
   const notifications = useMemo(
-    () => computeNotifications(tasks, calendarEvents, recurringTasks, dailyReports, now),
+    () => computeNotifications(tasks, calendarEvents, dailyReports, now),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, calendarEvents, recurringTasks, dailyReports]
+    [tasks, calendarEvents, dailyReports]
   );
 
   const unreadCount = useMemo(

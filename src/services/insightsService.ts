@@ -17,10 +17,12 @@ export interface ProjectInsight {
 }
 
 export interface TaskMomentum {
-  /** Tasks completed (per daily reports) in the last 7 days */
-  completedLast7: number;
-  /** Tasks completed (per daily reports) in the last 30 days */
-  completedLast30: number;
+  /** Total completed tasks in the store */
+  totalCompleted: number;
+  /** Total incomplete (active) tasks */
+  activeCount: number;
+  /** Overall completion rate 0–100 */
+  completionRate: number;
   /** Tasks with a due date in the past that are still incomplete */
   overdueCount: number;
 }
@@ -50,36 +52,24 @@ export function computeProjectInsights(
 }
 
 /**
- * Compute task momentum using daily reports (which track completed task IDs
- * per day) and the task list for overdue detection.
- *
- * Note: completedLast7/30 counts report entries — a day's report may
- * reference tasks completed across multiple sessions.
+ * Compute task momentum directly from the task list.
+ * Uses actual completed/active/overdue counts from the store.
  */
 export function computeTaskMomentum(
   tasks: Task[],
-  dailyReports: DailyReport[]
+  _dailyReports: DailyReport[]
 ): TaskMomentum {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const cutoff7 = new Date(today);
-  cutoff7.setDate(cutoff7.getDate() - 7);
-
-  const cutoff30 = new Date(today);
-  cutoff30.setDate(cutoff30.getDate() - 30);
-
-  const completedLast7 = dailyReports
-    .filter((r) => new Date(r.date) >= cutoff7)
-    .reduce((sum, r) => sum + (r.completedTaskIds?.length ?? 0), 0);
-
-  const completedLast30 = dailyReports
-    .filter((r) => new Date(r.date) >= cutoff30)
-    .reduce((sum, r) => sum + (r.completedTaskIds?.length ?? 0), 0);
+  const totalCompleted = tasks.filter((t) => t.isCompleted).length;
+  const activeCount = tasks.filter((t) => !t.isCompleted).length;
+  const total = tasks.length;
+  const completionRate = total === 0 ? 0 : Math.round((totalCompleted / total) * 100);
 
   const overdueCount = tasks.filter(
     (t) => !t.isCompleted && t.dueDate && new Date(t.dueDate) < today
   ).length;
 
-  return { completedLast7, completedLast30, overdueCount };
+  return { totalCompleted, activeCount, completionRate, overdueCount };
 }

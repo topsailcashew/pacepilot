@@ -10,6 +10,9 @@ import {
   ChevronDown,
   ChevronRight,
   Loader,
+  Pencil,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { AddTaskModal } from '@/components/tasks/AddTaskModal';
@@ -38,62 +41,170 @@ interface TaskRowProps {
 }
 
 const TaskRow: React.FC<TaskRowProps> = ({ task, projects, onToggle, onAssign }) => {
-  const [showAssign, setShowAssign] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const { updateTask, deleteTask, addToast } = useAppStore();
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    deleteTask(task.id);
+    addToast('info', `"${task.title}" removed.`);
+  };
+
+  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const updates: Partial<Task> = {
+      title: (fd.get('title') as string).trim(),
+      description: (fd.get('description') as string).trim() || undefined,
+      zone: fd.get('zone') as TaskZone,
+      dueDate: (fd.get('dueDate') as string) || undefined,
+      projectId: (fd.get('projectId') as string) || undefined,
+    };
+    if (!updates.title) return;
+    await updateTask(task.id, updates);
+    addToast('success', 'Task updated.');
+    setEditing(false);
+  };
 
   return (
-    <div className={`group flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
+    <div className={`rounded-xl border transition-all ${
       task.isCompleted
-        ? 'bg-white/[0.01] border-white/5 opacity-40'
+        ? 'bg-white/[0.01] border-white/5 opacity-50'
         : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.05] hover:border-white/10'
     }`}>
-      {/* Completion toggle */}
-      <button
-        onClick={onToggle}
-        aria-label={task.isCompleted ? 'Mark incomplete' : 'Mark complete'}
-        className="shrink-0 transition-colors text-white/20 hover:text-pilot-orange"
+      {/* Main row */}
+      <div
+        className="group flex items-center gap-3 px-4 py-3 cursor-pointer"
+        onClick={() => { if (!editing) setExpanded((p) => !p); }}
       >
-        {task.isCompleted
-          ? <CheckCircle2 size={18} className="text-green-500" />
-          : <Circle size={18} />}
-      </button>
+        {/* Completion toggle */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggle(); }}
+          aria-label={task.isCompleted ? 'Mark incomplete' : 'Mark complete'}
+          className="shrink-0 transition-colors text-white/20 hover:text-pilot-orange"
+        >
+          {task.isCompleted
+            ? <CheckCircle2 size={18} className="text-green-500" />
+            : <Circle size={18} />}
+        </button>
 
-      {/* Title */}
-      <span className={`flex-1 text-sm font-bold truncate ${
-        task.isCompleted ? 'line-through text-white/20' : 'text-white/80'
-      }`}>
-        {task.title}
-      </span>
+        {/* Title */}
+        <span className={`flex-1 text-sm font-bold truncate ${
+          task.isCompleted ? 'line-through text-white/20' : 'text-white/80'
+        }`}>
+          {task.title}
+        </span>
 
-      {/* Zone chip */}
-      {task.zone && <ZoneChip zone={task.zone} />}
+        {/* Zone chip */}
+        {task.zone && <ZoneChip zone={task.zone} />}
 
-      {/* Google Tasks sync indicator */}
-      {task.googleTaskId
-        ? <Link2 size={12} className="text-green-400/50 shrink-0" title="Synced with Google Tasks" />
-        : <Link2Off size={12} className="text-white/10 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" title="Not in Google Tasks" />
-      }
+        {/* Due date */}
+        {task.dueDate && (
+          <span className="text-[9px] font-bold text-white/30 hidden sm:block">
+            {new Date(task.dueDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+          </span>
+        )}
 
-      {/* Assign-to-project (only on unassigned tasks) */}
-      {!task.projectId && (
-        <div className="relative shrink-0">
-          <button
-            onClick={() => setShowAssign((p) => !p)}
-            className="text-[9px] font-black uppercase tracking-widest text-white/20 hover:text-pilot-orange transition-colors px-2 py-1 rounded-lg hover:bg-white/5"
-          >
-            Assign →
-          </button>
-          {showAssign && (
-            <div className="absolute right-0 top-full mt-1 w-44 z-50 bg-prussianblue border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-              {projects.map((p) => (
+        {/* Sync indicator */}
+        {task.googleTaskId
+          ? <Link2 size={12} className="text-green-400/50 shrink-0" title="Synced with Google Tasks" />
+          : <Link2Off size={12} className="text-white/10 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+        }
+
+        {/* Edit / expand caret */}
+        <span className="text-white/20 group-hover:text-white/40 transition-colors shrink-0">
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </span>
+      </div>
+
+      {/* Expanded panel */}
+      {expanded && (
+        <div
+          className="px-4 pb-4 border-t border-white/5 animate-in slide-in-from-top-1 duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {editing ? (
+            <form onSubmit={handleSave} className="space-y-3 pt-3">
+              <div className="space-y-1">
+                <label className={THEME.label}>Title</label>
+                <input name="title" type="text" required defaultValue={task.title} autoFocus className={`${THEME.input} w-full`} />
+              </div>
+              <div className="space-y-1">
+                <label className={THEME.label}>Details <span className="text-white/20">(optional)</span></label>
+                <textarea name="description" rows={2} defaultValue={task.description ?? ''} placeholder="Notes…" className={`${THEME.input} w-full resize-none`} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className={THEME.label}>Zone</label>
+                  <select name="zone" defaultValue={task.zone} className={`${THEME.input} w-full`}>
+                    {ZONE_KEYS.map((z) => (
+                      <option key={z} value={z}>{ZONES[z].label} — {ZONES[z].description}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className={THEME.label}>Due Date</label>
+                  <input name="dueDate" type="date" defaultValue={task.dueDate ?? ''} className={`${THEME.input} w-full`} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className={THEME.label}>Project</label>
+                <select name="projectId" defaultValue={task.projectId ?? ''} className={`${THEME.input} w-full`}>
+                  <option value="">No project</option>
+                  {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button type="submit" className={`${THEME.buttonPrimary} px-5 py-2 text-[9px] font-black uppercase tracking-widest`}>Save</button>
+                <button type="button" onClick={() => setEditing(false)} className={`${THEME.buttonSecondary} px-4 py-2 text-[9px] font-black uppercase tracking-widest`}>Cancel</button>
+              </div>
+            </form>
+          ) : (
+            <div className="pt-3 space-y-2">
+              {task.description && (
+                <p className="text-xs text-white/40 leading-relaxed">{task.description}</p>
+              )}
+              {task.dueDate && (
+                <p className="text-[9px] text-white/20 font-bold uppercase tracking-widest">
+                  Due: {new Date(task.dueDate + 'T12:00:00').toLocaleDateString()}
+                </p>
+              )}
+              {!task.description && !task.dueDate && (
+                <p className="text-[9px] text-white/20 italic">No details yet</p>
+              )}
+              <div className="flex items-center gap-2 pt-1">
                 <button
-                  key={p.id}
-                  onClick={() => { onAssign(p.id); setShowAssign(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
+                  onClick={() => setEditing(true)}
+                  className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 bg-white/5 rounded-lg hover:bg-white/10 transition-all text-white/50 hover:text-white"
                 >
-                  <span>{p.icon}</span>
-                  <span className="font-bold uppercase tracking-wide">{p.name}</span>
+                  <Pencil size={11} /> Edit
                 </button>
-              ))}
+                <button
+                  onClick={handleDelete}
+                  className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-all text-red-400"
+                >
+                  <Trash2 size={11} /> Delete
+                </button>
+                {!task.projectId && (
+                  <div className="relative ml-auto">
+                    <select
+                      onChange={(e) => { if (e.target.value) { onAssign(e.target.value); setExpanded(false); } }}
+                      defaultValue=""
+                      className={`${THEME.input} text-[9px] py-1.5 px-3 font-black uppercase tracking-widest`}
+                    >
+                      <option value="" disabled>Assign to project →</option>
+                      {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                )}
+                <button
+                  onClick={() => setExpanded(false)}
+                  className="ml-auto text-white/20 hover:text-white/50 transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              </div>
             </div>
           )}
         </div>

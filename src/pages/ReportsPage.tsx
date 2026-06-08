@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { TrendingUp, RefreshCw, AlertTriangle, CheckCircle2, Zap } from 'lucide-react';
+import { TrendingUp, RefreshCw, AlertTriangle, CheckCircle2, Zap, Activity } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -64,34 +64,45 @@ export const ReportsPage: React.FC = () => {
       </div>
 
       {/* ── Task Momentum Stats ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className={`${THEME.card} flex flex-col gap-2`}>
           <div className="flex items-center gap-2 text-pilot-orange">
             <Zap size={16} />
             <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
-              Completed Last 7 Days
+              Completed
             </span>
           </div>
-          <p className="text-4xl font-black text-white">{momentum.completedLast7}</p>
-          <p className="text-[9px] text-white/20 uppercase tracking-widest">Tasks from daily reports</p>
+          <p className="text-4xl font-black text-white">{momentum.totalCompleted}</p>
+          <p className="text-[9px] text-white/20 uppercase tracking-widest">Total tasks done</p>
         </div>
 
         <div className={`${THEME.card} flex flex-col gap-2`}>
           <div className="flex items-center gap-2 text-blue-400">
-            <CheckCircle2 size={16} />
+            <Activity size={16} />
             <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
-              Completed Last 30 Days
+              Active
             </span>
           </div>
-          <p className="text-4xl font-black text-white">{momentum.completedLast30}</p>
-          <p className="text-[9px] text-white/20 uppercase tracking-widest">Tasks from daily reports</p>
+          <p className="text-4xl font-black text-white">{momentum.activeCount}</p>
+          <p className="text-[9px] text-white/20 uppercase tracking-widest">Tasks in progress</p>
+        </div>
+
+        <div className={`${THEME.card} flex flex-col gap-2`}>
+          <div className="flex items-center gap-2 text-green-400">
+            <CheckCircle2 size={16} />
+            <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
+              Completion Rate
+            </span>
+          </div>
+          <p className="text-4xl font-black text-white">{momentum.completionRate}<span className="text-xl text-white/40">%</span></p>
+          <p className="text-[9px] text-white/20 uppercase tracking-widest">Of all tasks</p>
         </div>
 
         <div className={`${THEME.card} flex flex-col gap-2 ${momentum.overdueCount > 0 ? 'border-red-500/20' : ''}`}>
           <div className="flex items-center gap-2 text-red-400">
             <AlertTriangle size={16} />
             <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
-              Overdue Tasks
+              Overdue
             </span>
           </div>
           <p className={`text-4xl font-black ${momentum.overdueCount > 0 ? 'text-red-400' : 'text-white'}`}>
@@ -162,7 +173,7 @@ export const ReportsPage: React.FC = () => {
               <div key={project.id} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-2.5 h-2.5 rounded-full ${project.color}`} />
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: project.color }} />
                     <span className="text-xs font-bold text-white/70 uppercase">{project.name}</span>
                     {overdue > 0 && (
                       <span className="text-[9px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full uppercase tracking-widest">
@@ -179,8 +190,8 @@ export const ReportsPage: React.FC = () => {
                 {/* Progress bar */}
                 <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-700 ${project.color}`}
-                    style={{ width: `${rate}%` }}
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${rate}%`, backgroundColor: project.color }}
                   />
                 </div>
               </div>
