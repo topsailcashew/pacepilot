@@ -79,8 +79,9 @@ export const WeeklyPlannerPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── 7-column grid — fills remaining height ───────────────────────── */}
-      <div className="grid grid-cols-7 gap-3 flex-1 min-h-0">
+      {/* ── 7-column grid — fills remaining height, scrolls horizontally on mobile ── */}
+      <div className="flex-1 min-h-0 overflow-x-auto -mx-1 px-1">
+      <div className="grid gap-2 flex-1 min-h-0 h-full" style={{ gridTemplateColumns: 'repeat(7, minmax(140px, 1fr))' }}>
         {DAYS.map((day, idx) => {
           const d = new Date(monday);
           d.setDate(monday.getDate() + idx);
@@ -215,7 +216,8 @@ export const WeeklyPlannerPage: React.FC = () => {
             </div>
           );
         })}
-      </div>
+      </div>{/* end grid */}
+      </div>{/* end overflow-x-auto */}
 
       <AddEventModal
         isOpen={addEventDate !== null}
