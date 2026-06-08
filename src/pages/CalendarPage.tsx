@@ -394,32 +394,33 @@ export const CalendarPage: React.FC = () => {
     <div className="animate-in fade-in duration-500 pb-12 space-y-6">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-2">
-        <div className="flex items-center gap-3">
-          {/* View toggle */}
-          <div className="flex bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-            {VIEW_CONFIG.map(({ id, label }) => (
-              <button
-                key={id}
-                onClick={() => setView(id)}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all ${
-                  view === id ? 'bg-pilot-orange text-white' : 'text-white/40 hover:text-white'
-                }`}
-              >
-                {id === 'month' && <LayoutGrid size={12} />}
-                {id === 'week'  && <CalendarDays size={12} />}
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={() => openAdd(view === 'day' ? anchorDate : todayIso)}
-            className={`${THEME.buttonPrimary} px-6 py-3 text-xs font-black uppercase tracking-widest flex items-center gap-2`}
-          >
-            <Plus size={16} /> Add Event
-          </button>
+      <div className="flex items-center gap-3 px-2 flex-wrap">
+        {/* View toggle */}
+        <div className="flex bg-white/5 border border-white/10 rounded-xl overflow-hidden flex-1 sm:flex-none">
+          {VIEW_CONFIG.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setView(id)}
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-4 py-2.5 text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all ${
+                view === id ? 'bg-pilot-orange text-white' : 'text-white/40 hover:text-white'
+              }`}
+            >
+              {id === 'month' && <LayoutGrid size={11} />}
+              {id === 'week'  && <CalendarDays size={11} />}
+              <span className="hidden xs:inline">{label}</span>
+              <span className="xs:hidden">
+                {id === 'month' ? 'Mo' : id === 'week' ? 'Wk' : id === '4day' ? '4d' : 'Day'}
+              </span>
+            </button>
+          ))}
         </div>
+
+        <button
+          onClick={() => openAdd(view === 'day' ? anchorDate : todayIso)}
+          className={`${THEME.buttonPrimary} px-4 sm:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest flex items-center gap-2 shrink-0`}
+        >
+          <Plus size={14} /><span className="hidden xs:inline">Add </span>Event
+        </button>
       </div>
 
       {/* ── Subscribed Google Calendars — toggle strip ─────────────────────── */}

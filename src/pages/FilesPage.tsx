@@ -95,7 +95,7 @@ const FileCard: React.FC<{ file: DriveFile; onClick: () => void }> = ({ file, on
 const FileRow: React.FC<{ file: DriveFile; onClick: () => void }> = ({ file, onClick }) => (
   <button
     onClick={onClick}
-    className="group w-full flex items-center gap-4 px-4 py-3 rounded-xl border border-transparent hover:bg-white/[0.03] hover:border-white/5 transition-all text-left"
+    className="group w-full flex items-center gap-3 px-3 sm:px-4 py-3 rounded-xl border border-transparent hover:bg-white/[0.03] hover:border-white/5 transition-all text-left"
   >
     <span className={`text-xl leading-none shrink-0 ${KIND_COLOR[file.kind]}`}>
       {KIND_EMOJI[file.kind]}
@@ -110,10 +110,10 @@ const FileRow: React.FC<{ file: DriveFile; onClick: () => void }> = ({ file, onC
       )}
     </div>
 
-    <span className="text-[10px] text-white/20 tabular-nums shrink-0 w-20 text-right">
+    <span className="text-[10px] text-white/20 tabular-nums shrink-0 text-right">
       {formatDriveDate(file.modifiedTime)}
     </span>
-    <span className="text-[10px] text-white/20 tabular-nums shrink-0 w-14 text-right">
+    <span className="hidden sm:inline text-[10px] text-white/20 tabular-nums shrink-0 w-14 text-right">
       {formatSize(file.size)}
     </span>
 
@@ -470,11 +470,11 @@ export const FilesPage: React.FC = () => {
             /* List view with column headers */
             <div className={THEME.card}>
               {/* Header */}
-              <div className="flex items-center gap-4 px-4 pb-3 border-b border-white/5 mb-1">
+              <div className="flex items-center gap-3 px-3 sm:px-4 pb-3 border-b border-white/5 mb-1">
                 <span className="w-6 shrink-0" />
                 <span className="flex-1 text-[9px] font-black uppercase tracking-widest text-white/20">Name</span>
-                <span className="text-[9px] font-black uppercase tracking-widest text-white/20 w-20 text-right">Modified</span>
-                <span className="text-[9px] font-black uppercase tracking-widest text-white/20 w-14 text-right">Size</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-white/20 text-right">Modified</span>
+                <span className="hidden sm:inline text-[9px] font-black uppercase tracking-widest text-white/20 w-14 text-right">Size</span>
                 <span className="w-7 shrink-0" />
               </div>
               {displayed.map((file) => (

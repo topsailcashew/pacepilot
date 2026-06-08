@@ -23,6 +23,13 @@ const ROUTE_TITLES: Record<string, string> = {
   '/profile': 'User Profile',
 };
 
+/** Shorter labels for narrow mobile screens */
+const ROUTE_TITLES_SHORT: Record<string, string> = {
+  '/': 'Dashboard',
+  '/planner': 'Planner',
+  '/profile': 'Profile',
+};
+
 /**
  * Sticky page header containing the live clock, system status, and notification bell.
  * Title updates based on the current route. The bell opens a derived notification panel
@@ -84,6 +91,9 @@ export const TopBar: React.FC<TopBarProps> = ({ toggleSidebar, onAddTask }) => {
     ROUTE_TITLES[pathname] ??
     (pathname.startsWith('/projects') ? 'Projects' : 'Pace Pilot');
 
+  const titleShort =
+    ROUTE_TITLES_SHORT[pathname] ?? title;
+
   return (
     <header className="flex items-center justify-between mb-6 sm:mb-10 px-2 shrink-0 gap-2">
       <div className="flex items-center gap-3 min-w-0">
@@ -98,7 +108,8 @@ export const TopBar: React.FC<TopBarProps> = ({ toggleSidebar, onAddTask }) => {
 
         <div className="min-w-0">
           <h2 className="text-lg sm:text-2xl font-black text-white tracking-tight uppercase truncate">
-            {title}
+            <span className="sm:hidden">{titleShort}</span>
+            <span className="hidden sm:inline">{title}</span>
           </h2>
           <p className="text-[9px] sm:text-[10px] text-white/30 font-bold mt-0.5 uppercase tracking-[0.15em] sm:tracking-[0.2em] whitespace-nowrap">
             {now.toLocaleDateString()} • {now.toLocaleTimeString()}
