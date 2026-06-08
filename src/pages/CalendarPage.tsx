@@ -135,9 +135,11 @@ const MultiDayView: React.FC<MultiDayViewProps> = ({
   const colWidth = dates.length <= 4 ? 'min-w-[160px]' : 'min-w-[110px]';
 
   return (
-    <div className={`${THEME.card} overflow-hidden`}>
+    <div className={`${THEME.card} overflow-hidden p-0`}>
+      {/* Horizontally scrollable on mobile so columns don't get crushed */}
+      <div className="overflow-x-auto">
       {/* Day header row */}
-      <div className="flex border-b border-white/5 mb-0">
+      <div className="flex border-b border-white/5 mb-0" style={{ minWidth: dates.length <= 4 ? `${dates.length * 160 + 56}px` : `${dates.length * 110 + 56}px` }}>
         {/* Time gutter */}
         <div className="w-14 shrink-0" />
         {dates.map((iso) => {
@@ -158,7 +160,7 @@ const MultiDayView: React.FC<MultiDayViewProps> = ({
 
       {/* All-day row */}
       {dates.some((iso) => calendarEvents.some((e) => e.eventDate === iso && !e.time)) && (
-        <div className="flex border-b border-white/5 bg-white/[0.01]">
+        <div className="flex border-b border-white/5 bg-white/[0.01]" style={{ minWidth: dates.length <= 4 ? `${dates.length * 160 + 56}px` : `${dates.length * 110 + 56}px` }}>
           <div className="w-14 shrink-0 flex items-center justify-end pr-2">
             <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">All day</span>
           </div>
@@ -186,7 +188,7 @@ const MultiDayView: React.FC<MultiDayViewProps> = ({
         {TIMELINE_HOURS.map((hour) => {
           const label = `${String(hour).padStart(2, '0')}:00`;
           return (
-            <div key={hour} className="flex border-b border-white/5 last:border-0 min-h-[52px]">
+            <div key={hour} className="flex border-b border-white/5 last:border-0 min-h-[52px]" style={{ minWidth: dates.length <= 4 ? `${dates.length * 160 + 56}px` : `${dates.length * 110 + 56}px` }}>
               {/* Time label */}
               <div className="w-14 shrink-0 pt-2 text-right pr-2">
                 <span className={`text-[9px] font-black uppercase tracking-widest ${
@@ -243,6 +245,7 @@ const MultiDayView: React.FC<MultiDayViewProps> = ({
           );
         })}
       </div>
+      </div> {/* end overflow-x-auto */}
     </div>
   );
 };
@@ -394,22 +397,22 @@ export const CalendarPage: React.FC = () => {
     <div className="animate-in fade-in duration-500 pb-12 space-y-6">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-2 flex-wrap">
-        {/* View toggle */}
-        <div className="flex bg-white/5 border border-white/10 rounded-xl overflow-hidden flex-1 sm:flex-none">
+      <div className="flex items-center gap-3 px-2">
+        {/* View toggle — fills available width, each tab equal */}
+        <div className="flex bg-white/5 border border-white/10 rounded-xl overflow-hidden flex-1">
           {VIEW_CONFIG.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setView(id)}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-4 py-2.5 text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all ${
+              className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[9px] font-black uppercase tracking-widest transition-all ${
                 view === id ? 'bg-pilot-orange text-white' : 'text-white/40 hover:text-white'
               }`}
             >
-              {id === 'month' && <LayoutGrid size={11} />}
-              {id === 'week'  && <CalendarDays size={11} />}
-              <span className="hidden xs:inline">{label}</span>
-              <span className="xs:hidden">
-                {id === 'month' ? 'Mo' : id === 'week' ? 'Wk' : id === '4day' ? '4d' : 'Day'}
+              {id === 'month' && <LayoutGrid size={10} className="shrink-0" />}
+              {id === 'week'  && <CalendarDays size={10} className="shrink-0" />}
+              <span className="hidden sm:inline">{label}</span>
+              <span className="sm:hidden">
+                {id === 'month' ? 'Mo' : id === 'week' ? 'Wk' : id === '4day' ? '4D' : 'Day'}
               </span>
             </button>
           ))}
@@ -417,9 +420,9 @@ export const CalendarPage: React.FC = () => {
 
         <button
           onClick={() => openAdd(view === 'day' ? anchorDate : todayIso)}
-          className={`${THEME.buttonPrimary} px-4 sm:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest flex items-center gap-2 shrink-0`}
+          className={`${THEME.buttonPrimary} px-3 sm:px-6 py-2.5 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shrink-0`}
         >
-          <Plus size={14} /><span className="hidden xs:inline">Add </span>Event
+          <Plus size={14} /><span className="hidden xs:inline">Add Event</span>
         </button>
       </div>
 
